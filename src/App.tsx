@@ -1,21 +1,29 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { ForexChartData, LineDrawing, OHLCData } from './types/chart';
-import { getSampleForexData } from './utils/sampleData';
-import { TopControlBar } from './components/Controls/TopControlBar';
-import { LineItemsPopover } from './components/Controls/LineItemsPopover';
-import { ForexChart } from './components/Chart/ForexChart';
-import { StatusBar } from './components/StatusBar/StatusBar';
-import { UploadModal } from './components/Modals/UploadModal';
-import { SchemaHelpModal } from './components/Modals/SchemaHelpModal';
+import type React from 'react';
+import { useState, useMemo } from 'react';
+import {
+  type ForexChartData,
+  type LineDrawing,
+  type OHLCData,
+  type TimeframeData,
+} from './types/chart.js';
+import { getSampleForexData } from './utils/sampleData.js';
+import { TopControlBar } from './components/Controls/TopControlBar.js';
+import { LineItemsPopover } from './components/Controls/LineItemsPopover.js';
+import { ForexChart } from './components/Chart/ForexChart.js';
+import { StatusBar } from './components/StatusBar/StatusBar.js';
+import { UploadModal } from './components/Modals/UploadModal.js';
+import { SchemaHelpModal } from './components/Modals/SchemaHelpModal.js';
 
 export const App: React.FC = () => {
-  const [chartData, setChartData] = useState<ForexChartData>(() => getSampleForexData());
+  const [chartData, setChartData] = useState<ForexChartData>(() =>
+    getSampleForexData(),
+  );
   const [currentTimeframe, setCurrentTimeframe] = useState<string>('H4');
 
-  // Master visibility & individual visibility
-  const [individualVisibility, setIndividualVisibility] = useState<{ [id: string]: boolean }>({});
+  const [individualVisibility, setIndividualVisibility] = useState<{
+    [id: string]: boolean;
+  }>({});
 
-  // Line Inspector popover is CLOSED by default (không mở sẵn)
   const [isPopoverOpen, setIsPopoverOpen] = useState<boolean>(false);
 
   const [hoveredDrawingId, setHoveredDrawingId] = useState<string | null>(null);
@@ -23,18 +31,12 @@ export const App: React.FC = () => {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState<boolean>(false);
 
-  useEffect(() => {
-    const tfs = Object.keys(chartData.timeframes || {});
-    if (tfs.length > 0 && (!chartData.timeframes[currentTimeframe] || !currentTimeframe)) {
-      setCurrentTimeframe(chartData.defaultTimeframe || tfs[0]);
-    }
-  }, [chartData, currentTimeframe]);
-
   const currentTfData = useMemo(() => {
-    return chartData.timeframes?.[currentTimeframe] || { candles: [], drawings: [] };
+    return (
+      chartData.timeframes?.[currentTimeframe] || { candles: [], drawings: [] }
+    );
   }, [chartData, currentTimeframe]);
 
-  // Consolidate all lines in the JSON
   const allDrawings = useMemo(() => {
     const list: LineDrawing[] = [];
 
@@ -43,7 +45,10 @@ export const App: React.FC = () => {
     }
 
     if (chartData.timeframes) {
-      for (const [tf, data] of Object.entries(chartData.timeframes)) {
+      for (const [tf, data] of Object.entries(chartData.timeframes) as [
+        string,
+        TimeframeData,
+      ][]) {
         if (data.drawings && Array.isArray(data.drawings)) {
           for (const d of data.drawings) {
             list.push({ ...d, sourceTimeframe: d.sourceTimeframe || tf });
@@ -55,10 +60,6 @@ export const App: React.FC = () => {
     return list;
   }, [chartData]);
 
-  // ONLY lines currently displaying in the selected timeframe:
-  // - Common lines (outside)
-  // - Lines created in current timeframe
-  // - Lines from other timeframes ONLY if stretch: true
   const currentActiveLines = useMemo(() => {
     return allDrawings.filter((d) => {
       const isCommon = !d.sourceTimeframe;
@@ -70,9 +71,10 @@ export const App: React.FC = () => {
     });
   }, [allDrawings, currentTimeframe]);
 
-  // Count visible lines currently on chart
   const visibleLinesCount = useMemo(() => {
-    return currentActiveLines.filter((d) => individualVisibility[d.id] !== false).length;
+    return currentActiveLines.filter(
+      (d) => individualVisibility[d.id] !== false,
+    ).length;
   }, [currentActiveLines, individualVisibility]);
 
   const handleToggleIndividualVisibility = (id: string) => {
@@ -93,14 +95,13 @@ export const App: React.FC = () => {
     setChartData(newData);
     const tfs = Object.keys(newData.timeframes || {});
     if (tfs.length > 0) {
-      setCurrentTimeframe(newData.defaultTimeframe || tfs[0]);
+      setCurrentTimeframe(newData.defaultTimeframe || tfs[0] || 'H4');
     }
     setIndividualVisibility({});
   };
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#090d16] text-slate-100">
-      {/* Minimal Top Control Bar (No Header) */}
       <TopControlBar
         chartData={chartData}
         currentTimeframe={currentTimeframe}
@@ -114,7 +115,6 @@ export const App: React.FC = () => {
         visibleLinesCount={visibleLinesCount}
       />
 
-      {/* Main Chart Area */}
       <div className="flex-1 flex overflow-hidden relative">
         <main className="flex-1 h-full relative">
           <ForexChart
@@ -129,7 +129,6 @@ export const App: React.FC = () => {
             onCrosshairMove={setCrosshairOHLC}
           />
 
-          {/* Show/Hide Item Popover (Chỉ mở khi bấm nút, hiển thị đúng các đường trong timeframe đang chọn) */}
           <LineItemsPopover
             isOpen={isPopoverOpen}
             onClose={() => setIsPopoverOpen(false)}
@@ -143,7 +142,6 @@ export const App: React.FC = () => {
         </main>
       </div>
 
-      {/* Bottom Status Bar */}
       <StatusBar
         ohlc={crosshairOHLC}
         currentTimeframe={currentTimeframe}
@@ -153,7 +151,6 @@ export const App: React.FC = () => {
         totalDrawingsCount={currentActiveLines.length}
       />
 
-      {/* Modals */}
       <UploadModal
         isOpen={isUploadModalOpen}
         onClose={() => setIsUploadModalOpen(false)}

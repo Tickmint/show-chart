@@ -1,0 +1,11 @@
+node_modules
+dist
+build
+.next
+.swc
+.turbo
+coverage
+.expo
+*.min.js
+*.min.css
+public

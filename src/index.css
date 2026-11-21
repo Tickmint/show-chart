@@ -3,11 +3,19 @@
 @tailwind utilities;
 
 :root {
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  font-family:
+    'Plus Jakarta Sans',
+    system-ui,
+    -apple-system,
+    sans-serif;
   color-scheme: dark;
 }
 
-code, kbd, samp, pre, .font-mono {
+code,
+kbd,
+samp,
+pre,
+.font-mono {
   font-family: 'JetBrains Mono', monospace;
 }
 

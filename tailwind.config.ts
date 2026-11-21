@@ -1,10 +1,7 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
-  content: [
-    "./index.html",
-    "./src/**/*.{ts,tsx}",
-  ],
+  content: ['./index.html', './src/**/*.{ts,tsx}'],
   darkMode: 'class',
   theme: {
     extend: {
@@ -16,8 +13,8 @@ const config: Config = {
           accent: '#38bdf8',
           green: '#22c55e',
           red: '#ef4444',
-        }
-      }
+        },
+      },
     },
   },
   plugins: [],

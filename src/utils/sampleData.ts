@@ -1,20 +1,21 @@
-import { ForexChartData, Candle, LineDrawing } from '../types/chart';
+import {
+  type ForexChartData,
+  type Candle,
+  type LineDrawing,
+} from '../types/chart.js';
 
-/**
- * Generates realistic base M15 candles with continuous price trend & waves
- */
 function generateBaseM15Candles(
   startTime: number,
   count: number,
   startPrice: number,
-  volatility: number
+  volatility: number,
 ): Candle[] {
   const candles: Candle[] = [];
   let currentClose = startPrice;
 
   for (let i = 0; i < count; i++) {
     const time = startTime + i * 900;
-    // Macro wave + micro fluctuation
+
     const macroCycle = Math.sin(i / 160) * 0.0003 * startPrice;
     const mediumCycle = Math.cos(i / 35) * 0.00015 * startPrice;
     const randomStep = (Math.random() - 0.495) * volatility;
@@ -34,25 +35,26 @@ function generateBaseM15Candles(
   return candles;
 }
 
-/**
- * Aggregates smaller timeframe candles into larger timeframe candles (M15 -> H1 -> H4 -> D1)
- * This guarantees 100% price consistency across all timeframes!
- */
 function aggregateCandles(baseCandles: Candle[], groupSize: number): Candle[] {
   const aggregated: Candle[] = [];
   for (let i = 0; i < baseCandles.length; i += groupSize) {
     const chunk = baseCandles.slice(i, i + groupSize);
     if (chunk.length === 0) continue;
 
-    const time = chunk[0].time;
-    const open = chunk[0].open;
-    let high = chunk[0].high;
-    let low = chunk[0].low;
-    const close = chunk[chunk.length - 1].close;
+    const first = chunk[0];
+    const last = chunk[chunk.length - 1];
+    if (!first || !last) continue;
+
+    const time = first.time;
+    const open = first.open;
+    let high = first.high;
+    let low = first.low;
+    const close = last.close;
 
     for (let j = 1; j < chunk.length; j++) {
-      if (chunk[j].high > high) high = chunk[j].high;
-      if (chunk[j].low < low) low = chunk[j].low;
+      const item = chunk[j];
+      if (item && item.high > high) high = item.high;
+      if (item && item.low < low) low = item.low;
     }
 
     aggregated.push({
@@ -66,15 +68,16 @@ function aggregateCandles(baseCandles: Candle[], groupSize: number): Candle[] {
   return aggregated;
 }
 
-/**
- * Finds local swing lows (troughs) where candle low is lower than neighboring wicks
- */
 function findSwingLows(candles: Candle[], windowSize = 4): number[] {
   const lows: number[] = [];
   for (let i = windowSize; i < candles.length - windowSize; i++) {
+    const curr = candles[i];
+    if (!curr) continue;
     let isMin = true;
     for (let w = 1; w <= windowSize; w++) {
-      if (candles[i].low >= candles[i - w].low || candles[i].low >= candles[i + w].low) {
+      const prev = candles[i - w];
+      const next = candles[i + w];
+      if ((prev && curr.low >= prev.low) || (next && curr.low >= next.low)) {
         isMin = false;
         break;
       }
@@ -84,15 +87,19 @@ function findSwingLows(candles: Candle[], windowSize = 4): number[] {
   return lows;
 }
 
-/**
- * Finds local swing highs (peaks) where candle high is higher than neighboring wicks
- */
 function findSwingHighs(candles: Candle[], windowSize = 4): number[] {
   const highs: number[] = [];
   for (let i = windowSize; i < candles.length - windowSize; i++) {
+    const curr = candles[i];
+    if (!curr) continue;
     let isMax = true;
     for (let w = 1; w <= windowSize; w++) {
-      if (candles[i].high <= candles[i - w].high || candles[i].high <= candles[i + w].high) {
+      const prev = candles[i - w];
+      const next = candles[i + w];
+      if (
+        (prev && curr.high <= prev.high) ||
+        (next && curr.high <= next.high)
+      ) {
         isMax = false;
         break;
       }
@@ -104,148 +111,150 @@ function findSwingHighs(candles: Candle[], windowSize = 4): number[] {
 
 export function getSampleForexData(): ForexChartData {
   const now = Math.floor(Date.now() / 1000);
-  const totalM15 = 1600; // 1600 * 15m = 400 hours (~16.6 days)
+  const totalM15 = 1600;
   const startTime = now - totalM15 * 900;
 
-  // 1. Generate base M15 candles
-  const m15Candles = generateBaseM15Candles(startTime, totalM15, 1.0820, 0.00065);
+  const m15Candles = generateBaseM15Candles(
+    startTime,
+    totalM15,
+    1.082,
+    0.00065,
+  );
 
-  // 2. Aggregate to H1 (every 4 M15 candles)
-  const h1Candles = aggregateCandles(m15Candles, 4); // 400 candles
+  const h1Candles = aggregateCandles(m15Candles, 4);
 
-  // 3. Aggregate to H4 (every 4 H1 candles = 16 M15 candles)
-  const h4Candles = aggregateCandles(h1Candles, 4); // 100 candles
+  const h4Candles = aggregateCandles(h1Candles, 4);
 
-  // 4. Aggregate to D1 (every 6 H4 candles = 24 hours)
-  const d1Candles = aggregateCandles(h4Candles, 6); // ~16 candles
+  const d1Candles = aggregateCandles(h4Candles, 6);
 
-  // 5. Detect real swing points on H4
   const h4Lows = findSwingLows(h4Candles, 3);
   const h4Highs = findSwingHighs(h4Candles, 3);
 
-  // Pick actual swing low points that touch candle wicks
-  const lowIdx1 = h4Lows.length > 1 ? h4Lows[1] : 15;
-  const lowIdx2 = h4Lows.length > 3 ? h4Lows[h4Lows.length - 2] : 65;
+  const lowIdx1 = h4Lows[1] ?? 15;
+  const lowIdx2 = (h4Lows.length > 3 ? h4Lows[h4Lows.length - 2] : 65) ?? 65;
 
-  const highIdx1 = h4Highs.length > 1 ? h4Highs[1] : 25;
-  const highIdx2 = h4Highs.length > 3 ? h4Highs[h4Highs.length - 2] : 75;
+  const highIdx1 = h4Highs[1] ?? 25;
+  const highIdx2 =
+    (h4Highs.length > 3 ? h4Highs[h4Highs.length - 2] : 75) ?? 75;
 
-  const cLow1 = h4Candles[lowIdx1];
-  const cLow2 = h4Candles[lowIdx2];
-  const cHigh1 = h4Candles[highIdx1];
-  const cHigh2 = h4Candles[highIdx2];
+  const defaultCandle: Candle = {
+    time: startTime,
+    open: 1,
+    high: 1,
+    low: 1,
+    close: 1,
+  };
+  const cLow1 = h4Candles[lowIdx1] ?? h4Candles[0] ?? defaultCandle;
+  const cLow2 = h4Candles[lowIdx2] ?? h4Candles[0] ?? defaultCandle;
+  const cHigh1 = h4Candles[highIdx1] ?? h4Candles[0] ?? defaultCandle;
+  const cHigh2 = h4Candles[highIdx2] ?? h4Candles[0] ?? defaultCandle;
 
-  // 6. Detect real swing points on H1
   const h1Lows = findSwingLows(h1Candles, 4);
   const h1Highs = findSwingHighs(h1Candles, 4);
-  const h1LowIdx1 = h1Lows.length > 2 ? h1Lows[2] : 40;
-  const h1HighIdx1 = h1Highs.length > 2 ? h1Highs[2] : 60;
-  const h1LowIdx2 = h1Lows.length > 5 ? h1Lows[5] : 120;
-  const h1CLow1 = h1Candles[h1LowIdx1];
-  const h1CHigh1 = h1Candles[h1HighIdx1];
-  const h1CLow2 = h1Candles[h1LowIdx2];
+  const h1HighIdx1 = (h1Highs.length > 2 ? h1Highs[2] : 60) ?? 60;
+  const h1LowIdx2 = (h1Lows.length > 5 ? h1Lows[5] : 120) ?? 120;
+  const h1CHigh1 = h1Candles[h1HighIdx1] ?? h1Candles[0] ?? defaultCandle;
+  const h1CLow2 = h1Candles[h1LowIdx2] ?? h1Candles[0] ?? defaultCandle;
 
-  // 7. Detect real swing points on M15
   const m15Lows = findSwingLows(m15Candles, 6);
   const m15Highs = findSwingHighs(m15Candles, 6);
-  const m15LowIdx1 = m15Lows.length > 3 ? m15Lows[m15Lows.length - 4] : 1100;
-  const m15HighIdx2 = m15Highs.length > 1 ? m15Highs[m15Highs.length - 2] : 1450;
-  const m15CLow1 = m15Candles[m15LowIdx1];
-  const m15CHigh2 = m15Candles[m15HighIdx2];
+  const m15LowIdx1 =
+    (m15Lows.length > 3 ? m15Lows[m15Lows.length - 4] : 1100) ?? 1100;
+  const m15HighIdx2 =
+    (m15Highs.length > 1 ? m15Highs[m15Highs.length - 2] : 1450) ?? 1450;
+  const m15CLow1 = m15Candles[m15LowIdx1] ?? m15Candles[0] ?? defaultCandle;
+  const m15CHigh2 = m15Candles[m15HighIdx2] ?? m15Candles[0] ?? defaultCandle;
 
-  // =========================================================================
-  // COMMON DRAWINGS (Hình vẽ chung - đặt bên ngoài timeframes)
-  // Chỉ có 2 chiều: Tăng ('up') hoặc Giảm ('down')
-  // - Chiều tăng: đáy nến đầu (Low) -> đỉnh nến cuối (High)
-  // - Chiều giảm: đỉnh nến đầu (High) -> đáy nến cuối (Low)
-  // =========================================================================
   const commonDrawings: LineDrawing[] = [
     {
-      id: "common-swing-up",
-      type: "line",
-      direction: "up", // Chiều tăng: Đáy nến 1 -> Đỉnh nến 2
-      color: "#10b981",
+      id: 'common-swing-up',
+      type: 'line',
+      direction: 'up',
+      color: '#10b981',
       fromTime: cLow1.time,
       toTime: cHigh1.time,
       lineWidth: 2,
       stretch: true,
-      description: "Bullish line from candle 1 Low to candle 2 High."
+      description: 'Bullish line from candle 1 Low to candle 2 High.',
     },
     {
-      id: "common-swing-down",
-      type: "line",
-      direction: "down", // Chiều giảm: Đỉnh nến 1 -> Đáy nến 2
-      color: "#ef4444",
+      id: 'common-swing-down',
+      type: 'line',
+      direction: 'down',
+      color: '#ef4444',
       fromTime: cHigh1.time,
       toTime: cLow2.time,
       lineWidth: 2,
       stretch: true,
-      description: "Bearish line from candle 1 High to candle 2 Low."
-    }
+      description: 'Bearish line from candle 1 High to candle 2 Low.',
+    },
   ];
 
   return {
-    symbol: "EUR/USD",
-    title: "EUR/USD Multi-Timeframe Line Structure",
-    description: "Directional lines (Up: Low->High, Down: High->Low) stretching cleanly across H4, H1, M15 like TradingView.",
+    symbol: 'EUR/USD',
+    title: 'EUR/USD Multi-Timeframe Line Structure',
+    description:
+      'Directional lines (Up: Low->High, Down: High->Low) stretching cleanly across H4, H1, M15 like TradingView.',
     commonDrawings,
     timeframes: {
-      "H4": {
+      H4: {
         candles: h4Candles,
         drawings: [
           {
-            id: "h4-swing-up",
-            type: "line",
-            direction: "up",
-            color: "#38bdf8",
+            id: 'h4-swing-up',
+            type: 'line',
+            direction: 'up',
+            color: '#38bdf8',
             fromTime: cLow1.time,
             toTime: cHigh2.time,
             lineWidth: 2,
             stretch: true,
-            description: "H4 Bullish line (candle 1 Low -> candle 2 High), stretches across H1 & M15."
-          }
-        ]
+            description:
+              'H4 Bullish line (candle 1 Low -> candle 2 High), stretches across H1 & M15.',
+          },
+        ],
       },
 
-      "H1": {
+      H1: {
         candles: h1Candles,
         drawings: [
           {
-            id: "h1-intraday-down",
-            type: "line",
-            direction: "down",
-            color: "#eab308",
+            id: 'h1-intraday-down',
+            type: 'line',
+            direction: 'down',
+            color: '#eab308',
             fromTime: h1CHigh1.time,
             toTime: h1CLow2.time,
             lineWidth: 2,
             stretch: true,
-            description: "H1 Bearish line (candle 1 High -> candle 2 Low)."
-          }
-        ]
+            description: 'H1 Bearish line (candle 1 High -> candle 2 Low).',
+          },
+        ],
       },
 
-      "M15": {
+      M15: {
         candles: m15Candles,
         drawings: [
           {
-            id: "m15-scalp-up",
-            type: "line",
-            direction: "up",
-            color: "#a855f7",
+            id: 'm15-scalp-up',
+            type: 'line',
+            direction: 'up',
+            color: '#a855f7',
             fromTime: m15CLow1.time,
             toTime: m15CHigh2.time,
             lineWidth: 2,
             stretch: false,
-            description: "M15 Scalp Bullish line (candle 1 Low -> candle 2 High)."
-          }
-        ]
+            description:
+              'M15 Scalp Bullish line (candle 1 Low -> candle 2 High).',
+          },
+        ],
       },
 
-      "D1": {
+      D1: {
         candles: d1Candles,
-        drawings: []
-      }
+        drawings: [],
+      },
     },
-    defaultTimeframe: "H4"
+    defaultTimeframe: 'H4',
   };
 }

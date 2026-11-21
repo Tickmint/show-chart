@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import type React from 'react';
+import { useState } from 'react';
 import { X, Copy, Check, FileJson, TrendingUp, Maximize2 } from 'lucide-react';
 
 interface SchemaHelpModalProps {
@@ -54,7 +55,10 @@ const SAMPLE_JSON_SCHEMA = `{
   "defaultTimeframe": "H4"
 }`;
 
-export const SchemaHelpModal: React.FC<SchemaHelpModalProps> = ({ isOpen, onClose }) => {
+export const SchemaHelpModal: React.FC<SchemaHelpModalProps> = ({
+  isOpen,
+  onClose,
+}) => {
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
@@ -98,8 +102,12 @@ export const SchemaHelpModal: React.FC<SchemaHelpModalProps> = ({ isOpen, onClos
                 <span>1. Common vs Timeframe Lines</span>
               </div>
               <p className="text-slate-400">
-                <strong className="text-slate-200">Common Lines</strong> are placed outside timeframes under <code className="text-sky-300">"commonDrawings"</code>.<br />
-                <strong className="text-slate-200">Specific Lines</strong> are placed inside each timeframe under <code className="text-indigo-300">"drawings"</code>.
+                <strong className="text-slate-200">Common Lines</strong> are
+                placed outside timeframes under{' '}
+                <code className="text-sky-300">"commonDrawings"</code>.<br />
+                <strong className="text-slate-200">Specific Lines</strong> are
+                placed inside each timeframe under{' '}
+                <code className="text-indigo-300">"drawings"</code>.
               </p>
             </div>
 
@@ -109,19 +117,29 @@ export const SchemaHelpModal: React.FC<SchemaHelpModalProps> = ({ isOpen, onClos
                 <span>2. TradingView Multi-TF Stretch</span>
               </div>
               <p className="text-slate-400">
-                Set <code className="text-emerald-300">"stretch": true</code>: When moving from H4 to H1 to M15, the line stretches smoothly across the corresponding candles! Set <code className="text-slate-300">"stretch": false</code> to lock the line strictly to its native timeframe.
+                Set <code className="text-emerald-300">"stretch": true</code>:
+                When moving from H4 to H1 to M15, the line stretches smoothly
+                across the corresponding candles! Set{' '}
+                <code className="text-slate-300">"stretch": false</code> to lock
+                the line strictly to its native timeframe.
               </p>
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <span className="font-mono text-slate-400 text-[11px]">JSON Schema Example:</span>
+              <span className="font-mono text-slate-400 text-[11px]">
+                JSON Schema Example:
+              </span>
               <button
                 onClick={handleCopy}
                 className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px]"
               >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? (
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
                 <span>{copied ? 'Copied!' : 'Copy Schema'}</span>
               </button>
             </div>

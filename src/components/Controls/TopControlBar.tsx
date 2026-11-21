@@ -1,6 +1,6 @@
-import React from 'react';
+import type React from 'react';
 import { Eye, EyeOff, Upload, Sparkles, HelpCircle } from 'lucide-react';
-import { ForexChartData } from '../../types/chart';
+import { type ForexChartData } from '../../types/chart.js';
 
 interface TopControlBarProps {
   chartData: ForexChartData;
@@ -31,7 +31,6 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
 
   return (
     <div className="h-10 bg-[#0a0f1d] border-b border-slate-800/80 px-3 flex items-center justify-between text-xs select-none z-30">
-      {/* Left: Symbol & Timeframe pills */}
       <div className="flex items-center gap-2.5">
         <span className="font-bold text-slate-100 tracking-wide font-mono text-xs">
           {chartData.symbol || 'FOREX'}
@@ -56,7 +55,6 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
         </div>
       </div>
 
-      {/* Right: Actions and single "Show/Hide Item" button */}
       <div className="flex items-center gap-2">
         <button
           onClick={onLoadSample}
@@ -76,7 +74,6 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
           <span>Upload</span>
         </button>
 
-        {/* The single required button: Show/Hide Item */}
         <button
           id="btn-show-hide-item"
           onClick={onTogglePopover}

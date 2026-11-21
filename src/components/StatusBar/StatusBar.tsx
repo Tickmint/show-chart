@@ -1,5 +1,5 @@
-import React from 'react';
-import { OHLCData } from '../../types/chart';
+import type React from 'react';
+import { type OHLCData } from '../../types/chart.js';
 
 interface StatusBarProps {
   ohlc: OHLCData | null;
@@ -34,39 +34,59 @@ export const StatusBar: React.FC<StatusBarProps> = ({
 
   return (
     <footer className="h-8 bg-[#080c16] border-t border-slate-800/80 px-4 flex items-center justify-between text-[11px] text-slate-400 font-mono select-none">
-      {/* Left side: Live OHLC crosshair data */}
       <div className="flex items-center gap-3 overflow-hidden">
         {ohlc ? (
           <div className="flex items-center gap-3">
-            <span className="text-slate-300 font-semibold">{formatDate(ohlc.time)}</span>
-            <span className="hidden sm:inline">
-              O: <strong className="text-slate-200">{ohlc.open.toFixed(5)}</strong>
+            <span className="text-slate-300 font-semibold">
+              {formatDate(ohlc.time)}
             </span>
             <span className="hidden sm:inline">
-              H: <strong className="text-slate-200">{ohlc.high.toFixed(5)}</strong>
+              O:{' '}
+              <strong className="text-slate-200">{ohlc.open.toFixed(5)}</strong>
             </span>
             <span className="hidden sm:inline">
-              L: <strong className="text-slate-200">{ohlc.low.toFixed(5)}</strong>
+              H:{' '}
+              <strong className="text-slate-200">{ohlc.high.toFixed(5)}</strong>
+            </span>
+            <span className="hidden sm:inline">
+              L:{' '}
+              <strong className="text-slate-200">{ohlc.low.toFixed(5)}</strong>
             </span>
             <span>
-              C: <strong className={isUp ? 'text-emerald-400' : 'text-rose-400'}>{ohlc.close.toFixed(5)}</strong>
+              C:{' '}
+              <strong className={isUp ? 'text-emerald-400' : 'text-rose-400'}>
+                {ohlc.close.toFixed(5)}
+              </strong>
             </span>
             {ohlc.change !== undefined && (
-              <span className={`font-medium ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}>
+              <span
+                className={`font-medium ${isUp ? 'text-emerald-400' : 'text-rose-400'}`}
+              >
                 {ohlc.change >= 0 ? '+' : ''}
-                {ohlc.change.toFixed(5)} ({ohlc.changePercent ? (ohlc.changePercent >= 0 ? '+' : '') + ohlc.changePercent.toFixed(2) : '0.00'}%)
+                {ohlc.change.toFixed(5)} (
+                {ohlc.changePercent
+                  ? (ohlc.changePercent >= 0 ? '+' : '') +
+                    ohlc.changePercent.toFixed(2)
+                  : '0.00'}
+                %)
               </span>
             )}
           </div>
         ) : (
-          <span className="text-slate-500 italic">Hover over chart candles to inspect OHLC data</span>
+          <span className="text-slate-500 italic">
+            Hover over chart candles to inspect OHLC data
+          </span>
         )}
       </div>
 
-      {/* Right side: Status and Drawing Counts */}
       <div className="flex items-center gap-4 text-slate-400 shrink-0">
         <div>
-          TF: <strong className="text-sky-400">{currentTimeframe}</strong> ({candlesCount} candles)
+          <strong className="text-slate-200">{symbol}</strong>
+        </div>
+        <div className="h-3 w-[1px] bg-slate-800" />
+        <div>
+          TF: <strong className="text-sky-400">{currentTimeframe}</strong> (
+          {candlesCount} candles)
         </div>
         <div className="h-3 w-[1px] bg-slate-800" />
         <div>

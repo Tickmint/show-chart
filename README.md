@@ -66,7 +66,13 @@ It supports importing candlestick data and technical lines via **plain JSON** (`
   "timeframes": {
     "H4": {
       "candles": [
-        { "time": 1704067200, "open": 1.0720, "high": 1.0780, "low": 1.0710, "close": 1.0750 }
+        {
+          "time": 1704067200,
+          "open": 1.072,
+          "high": 1.078,
+          "low": 1.071,
+          "close": 1.075
+        }
       ],
       "drawings": [
         {
@@ -83,7 +89,13 @@ It supports importing candlestick data and technical lines via **plain JSON** (`
     },
     "H1": {
       "candles": [
-        { "time": 1704067200, "open": 1.0720, "high": 1.0740, "low": 1.0715, "close": 1.0735 }
+        {
+          "time": 1704067200,
+          "open": 1.072,
+          "high": 1.074,
+          "low": 1.0715,
+          "close": 1.0735
+        }
       ],
       "drawings": []
     }
@@ -97,16 +109,19 @@ It supports importing candlestick data and technical lines via **plain JSON** (`
 ## 🚀 Getting Started
 
 ### Development
+
 ```bash
 npm run dev
 ```
 
 ### Production Build
+
 ```bash
 npm run build
 ```
 
 ### Sinh dữ liệu test (.json & .json.gz)
+
 ```bash
 python test_data/generate_test_data.py
 ```

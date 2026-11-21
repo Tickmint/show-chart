@@ -1,7 +1,19 @@
-import React, { useEffect, useRef, useCallback } from 'react';
-import { createChart, IChartApi, ISeriesApi, ColorType, CrosshairMode, Time } from 'lightweight-charts';
-import { Candle, LineDrawing, OHLCData } from '../../types/chart';
-import { renderLine } from '../../utils/canvasDrawing';
+import type React from 'react';
+import { useEffect, useRef, useCallback } from 'react';
+import {
+  createChart,
+  type IChartApi,
+  type ISeriesApi,
+  ColorType,
+  CrosshairMode,
+  type Time,
+} from 'lightweight-charts';
+import {
+  type Candle,
+  type LineDrawing,
+  type OHLCData,
+} from '../../types/chart.js';
+import { renderLine } from '../../utils/canvasDrawing.js';
 
 interface ForexChartProps {
   candles: Candle[];
@@ -96,7 +108,11 @@ export const ForexChart: React.FC<ForexChartProps> = ({
       if (isCommon && !scopes.common) continue;
       if (!isCommon && !scopes.timeframe) continue;
 
-      if (!isCommon && drawing.sourceTimeframe !== currentTf && drawing.stretch === false) {
+      if (
+        !isCommon &&
+        drawing.sourceTimeframe !== currentTf &&
+        drawing.stretch === false
+      ) {
         continue;
       }
 
@@ -104,9 +120,7 @@ export const ForexChart: React.FC<ForexChartProps> = ({
 
       try {
         renderLine(ctx, drawing, currentCandles, timeScale, series, isHovered);
-      } catch (err) {
-        console.error('Error rendering line', drawing.id, err);
-      }
+      } catch {}
     }
 
     ctx.restore();
@@ -210,7 +224,8 @@ export const ForexChart: React.FC<ForexChartProps> = ({
         return;
       }
 
-      const barData = param.seriesData.get(candleSeries) as any;
+      const barData = param.seriesData.get(candleSeries) as
+        { open: number; high: number; low: number; close: number } | undefined;
       if (barData) {
         const open = barData.open;
         const close = barData.close;
@@ -231,7 +246,6 @@ export const ForexChart: React.FC<ForexChartProps> = ({
       }
     });
 
-    // 60fps loop on mouse drag so lines follow 1:1 without latency
     const startDragLoop = () => {
       isDraggingRef.current = true;
       const step = () => {
@@ -253,8 +267,9 @@ export const ForexChart: React.FC<ForexChartProps> = ({
     container.addEventListener('wheel', requestCanvasRedraw);
 
     const resizeObserver = new ResizeObserver((entries) => {
-      if (!entries || entries.length === 0 || !container) return;
-      const { width, height } = entries[0].contentRect;
+      const entry = entries[0];
+      if (!entry || !container) return;
+      const { width, height } = entry.contentRect;
       if (width > 0 && height > 0) {
         chart.applyOptions({ width, height });
 
