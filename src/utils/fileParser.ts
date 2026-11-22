@@ -2,7 +2,7 @@ import pako from 'pako';
 import {
   type ForexChartData,
   type Candle,
-  type LineDrawing,
+  type Drawing,
   type TimeframeData,
   type LineDirection,
   type PriceOption,
@@ -78,10 +78,101 @@ export function normalizeDrawings(
   rawDrawings: unknown[],
   sourceTimeframe?: string,
   defaultGroup?: string,
-): LineDrawing[] {
+): Drawing[] {
   if (!Array.isArray(rawDrawings)) return [];
 
   return (rawDrawings as Array<Record<string, unknown>>).map((d, index) => {
+    const rawType =
+      typeof d.type === 'string' ? d.type.toLowerCase().trim() : '';
+    const isZoneOrBox =
+      rawType === 'box' ||
+      rawType === 'zone' ||
+      rawType === 'rectangle' ||
+      rawType === 'range' ||
+      d.topPrice !== undefined ||
+      d.bottomPrice !== undefined;
+
+    const stretch = d.stretch !== undefined ? Boolean(d.stretch) : true;
+    const visible = d.visible !== undefined ? Boolean(d.visible) : true;
+
+    const displayName =
+      typeof d.displayName === 'string' && d.displayName.trim() !== ''
+        ? d.displayName.trim()
+        : typeof d.title === 'string' && d.title.trim() !== ''
+          ? d.title.trim()
+          : typeof d.name === 'string' && d.name.trim() !== ''
+            ? d.name.trim()
+            : undefined;
+
+    const elementName =
+      displayName ||
+      (typeof d.element === 'string' && d.element.trim() !== ''
+        ? d.element.trim()
+        : typeof d.elementId === 'string' && d.elementId.trim() !== ''
+          ? d.elementId.trim()
+          : typeof d.group === 'string' && d.group.trim() !== ''
+            ? d.group.trim()
+            : typeof d.groupId === 'string' && d.groupId.trim() !== ''
+              ? d.groupId.trim()
+              : typeof d.groupName === 'string' && d.groupName.trim() !== ''
+                ? d.groupName.trim()
+                : defaultGroup ||
+                  (sourceTimeframe
+                    ? `Timeframe ${sourceTimeframe}`
+                    : 'Common'));
+
+    if (isZoneOrBox) {
+      const id =
+        typeof d.id === 'string'
+          ? d.id
+          : `zone-${sourceTimeframe || 'common'}-${index + 1}-${Math.random().toString(36).slice(2, 7)}`;
+      const color = typeof d.color === 'string' ? d.color : '#0ea5e9';
+      const borderStyle = d.borderStyle === 'dashed' ? 'dashed' : 'solid';
+
+      return {
+        id,
+        type: rawType === 'box' ? 'box' : 'zone',
+        color,
+        fillColor: typeof d.fillColor === 'string' ? d.fillColor : undefined,
+        borderColor:
+          typeof d.borderColor === 'string' ? d.borderColor : undefined,
+        borderWidth: typeof d.borderWidth === 'number' ? d.borderWidth : 1.5,
+        borderStyle,
+        element: elementName,
+        group: elementName,
+        displayName,
+        fromTime:
+          d.fromTime !== undefined
+            ? normalizeTimestamp(d.fromTime as number | string)
+            : undefined,
+        toTime:
+          d.toTime !== undefined
+            ? normalizeTimestamp(d.toTime as number | string)
+            : undefined,
+        fromCandleIndex:
+          typeof d.fromCandleIndex === 'number' ? d.fromCandleIndex : undefined,
+        toCandleIndex:
+          typeof d.toCandleIndex === 'number' ? d.toCandleIndex : undefined,
+        topPrice: typeof d.topPrice === 'number' ? d.topPrice : undefined,
+        bottomPrice:
+          typeof d.bottomPrice === 'number' ? d.bottomPrice : undefined,
+        paddingRatio:
+          typeof d.paddingRatio === 'number' ? d.paddingRatio : undefined,
+        paddingPrice:
+          typeof d.paddingPrice === 'number' ? d.paddingPrice : undefined,
+        label: typeof d.label === 'string' ? d.label.trim() : undefined,
+        showLabel: d.showLabel !== undefined ? Boolean(d.showLabel) : true,
+        labelColor: typeof d.labelColor === 'string' ? d.labelColor : undefined,
+        labelFontSize:
+          typeof d.labelFontSize === 'number' ? d.labelFontSize : undefined,
+        stretch,
+        visible,
+        description:
+          typeof d.description === 'string' ? d.description : undefined,
+        sourceTimeframe,
+      };
+    }
+
     const id =
       typeof d.id === 'string'
         ? d.id
@@ -97,22 +188,6 @@ export function normalizeDrawings(
         : direction === 'up'
           ? '#10b981'
           : '#ef4444';
-    const stretch = d.stretch !== undefined ? Boolean(d.stretch) : true;
-    const visible = d.visible !== undefined ? Boolean(d.visible) : true;
-
-    const elementName =
-      typeof d.element === 'string' && d.element.trim() !== ''
-        ? d.element.trim()
-        : typeof d.elementId === 'string' && d.elementId.trim() !== ''
-          ? d.elementId.trim()
-          : typeof d.group === 'string' && d.group.trim() !== ''
-            ? d.group.trim()
-            : typeof d.groupId === 'string' && d.groupId.trim() !== ''
-              ? d.groupId.trim()
-              : typeof d.groupName === 'string' && d.groupName.trim() !== ''
-                ? d.groupName.trim()
-                : defaultGroup ||
-                  (sourceTimeframe ? `Timeframe ${sourceTimeframe}` : 'Common');
 
     const fromPrice: PriceOption = direction === 'up' ? 'low' : 'high';
     const toPrice: PriceOption = direction === 'up' ? 'high' : 'low';
@@ -124,6 +199,7 @@ export function normalizeDrawings(
       color,
       element: elementName,
       group: elementName,
+      displayName,
       fromTime:
         d.fromTime !== undefined
           ? normalizeTimestamp(d.fromTime as number | string)
@@ -152,8 +228,8 @@ function extractDrawingsWithGroups(
   drawingsArray: unknown,
   groupsArray: unknown,
   sourceTimeframe?: string,
-): LineDrawing[] {
-  const result: LineDrawing[] = [];
+): Drawing[] {
+  const result: Drawing[] = [];
 
   if (Array.isArray(drawingsArray)) {
     result.push(...normalizeDrawings(drawingsArray, sourceTimeframe));
@@ -168,7 +244,7 @@ function extractDrawingsWithGroups(
             : typeof g.id === 'string' && g.id.trim() !== ''
               ? g.id.trim()
               : undefined;
-        const gDrawings = g.drawings || g.lines;
+        const gDrawings = g.drawings || g.lines || g.zones || g.boxes;
         if (Array.isArray(gDrawings)) {
           result.push(
             ...normalizeDrawings(gDrawings, sourceTimeframe, groupName),
@@ -200,7 +276,13 @@ export function standardizeChartData(raw: unknown): ForexChartData {
   const description =
     typeof rawObj.description === 'string' ? rawObj.description : '';
   const commonDrawings = extractDrawingsWithGroups(
-    rawObj.commonDrawings || rawObj.globalDrawings || rawObj.drawings,
+    rawObj.commonDrawings ||
+      rawObj.commonZones ||
+      rawObj.commonBoxes ||
+      rawObj.globalDrawings ||
+      rawObj.drawings ||
+      rawObj.zones ||
+      rawObj.boxes,
     rawObj.commonElements ||
       rawObj.elements ||
       rawObj.commonGroups ||
@@ -219,7 +301,7 @@ export function standardizeChartData(raw: unknown): ForexChartData {
           timeframes[tfKey] = {
             candles: normalizeCandles(tfObj.candles),
             drawings: extractDrawingsWithGroups(
-              tfObj.drawings || tfObj.lines,
+              tfObj.drawings || tfObj.lines || tfObj.zones || tfObj.boxes,
               tfObj.elements || tfObj.groups,
               tfKey,
             ),
@@ -231,7 +313,7 @@ export function standardizeChartData(raw: unknown): ForexChartData {
     timeframes['D1'] = {
       candles: normalizeCandles(rawObj.candles),
       drawings: extractDrawingsWithGroups(
-        rawObj.drawings,
+        rawObj.drawings || rawObj.zones || rawObj.boxes,
         rawObj.elements || rawObj.groups,
         'D1',
       ),

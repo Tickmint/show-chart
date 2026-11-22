@@ -6,39 +6,69 @@ export interface Candle {
   close: number;
 }
 
-export type DrawingType = 'line';
+export type DrawingType = 'line' | 'box' | 'zone';
 export type PriceOption = 'high' | 'low' | number;
 export type LineDirection = 'up' | 'down';
 
-export interface LineDrawing {
+export interface BaseDrawing {
   id: string;
-  type: 'line';
-  direction: LineDirection;
   color: string;
   element?: string;
   group?: string;
+  displayName?: string;
   fromTime?: number | string;
   toTime?: number | string;
-  fromPrice?: PriceOption;
-  toPrice?: PriceOption;
   fromCandleIndex?: number;
   toCandleIndex?: number;
-  lineWidth?: number;
-
   stretch?: boolean;
   visible?: boolean;
   description?: string;
   sourceTimeframe?: string;
 }
 
-export type Drawing = LineDrawing;
+export interface LineDrawing extends BaseDrawing {
+  type: 'line';
+  direction: LineDirection;
+  fromPrice?: PriceOption;
+  toPrice?: PriceOption;
+  lineWidth?: number;
+}
+
+export interface ZoneDrawing extends BaseDrawing {
+  type: 'box' | 'zone';
+  fillColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderStyle?: 'solid' | 'dashed';
+  topPrice?: number;
+  bottomPrice?: number;
+  paddingRatio?: number;
+  paddingPrice?: number;
+  label?: string;
+  showLabel?: boolean;
+  labelColor?: string;
+  labelFontSize?: number;
+}
+
+export type BoxDrawing = ZoneDrawing;
+
+export type Drawing = LineDrawing | ZoneDrawing;
+
+export function isLineDrawing(drawing: Drawing): drawing is LineDrawing {
+  return drawing.type === 'line';
+}
+
+export function isZoneDrawing(drawing: Drawing): drawing is ZoneDrawing {
+  return drawing.type === 'box' || drawing.type === 'zone';
+}
 
 export interface ChartElement {
   id: string;
   name: string;
+  displayName?: string;
   color: string;
   sourceTimeframe?: string;
-  drawings: LineDrawing[];
+  drawings: Drawing[];
   colors: string[];
 }
 

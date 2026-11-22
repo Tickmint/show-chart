@@ -61,22 +61,22 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-lg bg-[#0e1422] border border-slate-800 rounded-xl shadow-2xl p-6 text-slate-200">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 dark:bg-black/75 backdrop-blur-sm">
+      <div className="relative w-full max-w-lg bg-white dark:bg-[#0e1422] border border-slate-200 dark:border-slate-800 rounded-xl p-6 text-slate-800 dark:text-slate-200">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
           <div>
-            <h3 className="text-base font-semibold text-slate-100 flex items-center gap-2">
-              <UploadCloud className="w-5 h-5 text-sky-400" />
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <UploadCloud className="w-5 h-5 text-sky-500 dark:text-sky-400" />
               <span>Import Forex Chart Data</span>
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Supports plain JSON (.json) or compressed GZIP (.gz, .json.gz)
             </p>
           </div>
           {showCloseButton && onClose && (
             <button
               onClick={onClose}
-              className="p-1 rounded-md text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors cursor-pointer"
+              className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -91,10 +91,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className={`mt-5 border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer transition-all ${
+          className={`mt-5 border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer ${
             isDragging
-              ? 'border-sky-500 bg-sky-500/10'
-              : 'border-slate-700 bg-slate-900/50 hover:border-slate-600 hover:bg-slate-900'
+              ? 'border-sky-500 bg-sky-50 dark:bg-sky-500/10'
+              : 'border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 hover:border-slate-400 dark:hover:border-slate-600 hover:bg-slate-100/80 dark:hover:bg-slate-900'
           }`}
         >
           <input
@@ -105,42 +105,51 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             className="hidden"
           />
 
-          <div className="p-3 bg-slate-800 rounded-full mb-3 text-sky-400">
+          <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-full mb-3 text-sky-500 dark:text-sky-400">
             {isDragging ? (
-              <FileArchive className="w-8 h-8 animate-bounce" />
+              <FileArchive className="w-8 h-8" />
             ) : (
               <UploadCloud className="w-8 h-8" />
             )}
           </div>
 
-          <p className="text-sm font-medium text-slate-200">
+          <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
             Click to upload or drag & drop file here
           </p>
-          <p className="text-xs text-slate-500 mt-1">
-            Accepts <span className="font-mono text-slate-400">.json</span>,{' '}
-            <span className="font-mono text-slate-400">.gz</span>, or{' '}
-            <span className="font-mono text-slate-400">.json.gz</span>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Accepts{' '}
+            <span className="font-mono text-slate-700 dark:text-slate-300">
+              .json
+            </span>
+            ,{' '}
+            <span className="font-mono text-slate-700 dark:text-slate-300">
+              .gz
+            </span>
+            , or{' '}
+            <span className="font-mono text-slate-700 dark:text-slate-300">
+              .json.gz
+            </span>
           </p>
         </div>
 
         {error && (
-          <div className="mt-4 p-3 rounded-lg bg-red-950/60 border border-red-800/80 text-red-300 text-xs flex items-start gap-2">
+          <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800/80 text-red-600 dark:text-red-300 text-xs flex items-start gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <span>{error}</span>
           </div>
         )}
 
         {isLoading && (
-          <div className="mt-4 text-center text-xs text-sky-400 animate-pulse">
+          <div className="mt-4 text-center text-xs text-sky-500 dark:text-sky-400">
             Decompressing and parsing chart data...
           </div>
         )}
 
         {showCloseButton && onClose && (
-          <div className="mt-5 pt-4 border-t border-slate-800 flex justify-end gap-2">
+          <div className="mt-5 pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-xs rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
+              className="px-4 py-2 text-xs rounded-md bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer"
             >
               Cancel
             </button>
@@ -150,3 +159,5 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     </div>
   );
 };
+
+export default UploadModal;

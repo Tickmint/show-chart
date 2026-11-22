@@ -24,43 +24,54 @@ def generate_base_m15_candles(
     start_price: float,
     volatility: float
 ) -> List[Dict[str, Any]]:
-    """Generates continuous base M15 candlestick series with distinct, separated Market Structure waves."""
+    """Generates continuous base M15 candlestick series with distinct, separated Market Structure waves.
+    Ensures clean, calendar-aligned trading day timestamps (Monday to Friday, skipping weekends).
+    """
     candles = []
     decimals = 5 if start_price < 20 else 2
 
     for i in range(count):
-        candle_time = start_time + i * 900
+        # 96 M15 candles per trading day (24 hours)
+        day_idx = i // 96
+        candle_in_day = i % 96
 
-        # Window 1: 0..576 (D1 Macro Bullish: L1 -> H1 -> HL2 -> HH2)
-        if i < 240:
-            target = start_price + (i / 240.0) * (start_price * 0.018)
-        elif i < 400:
-            target = start_price * 1.018 - ((i - 240.0) / 160.0) * (start_price * 0.010)
-        elif i < 576:
-            target = start_price * 1.008 + ((i - 400.0) / 176.0) * (start_price * 0.018)
-        # Window 2: 576..1050 (H4 Bullish: L1 -> H1 -> HL2 -> HH2)
-        elif i < 650:
-            target = start_price * 1.026 - ((i - 576.0) / 74.0) * (start_price * 0.021)
-        elif i < 780:
-            target = start_price * 1.005 + ((i - 650.0) / 130.0) * (start_price * 0.017)
-        elif i < 880:
-            target = base_price = start_price * 1.022 - ((i - 780.0) / 100.0) * (start_price * 0.010)
-        elif i < 1050:
-            target = start_price * 1.012 + ((i - 880.0) / 170.0) * (start_price * 0.018)
-        # Window 3: 1050..1360 (H1 Bearish: H1 -> L1 -> LH2 -> LL2)
-        elif i < 1180:
-            target = start_price * 1.030 - ((i - 1050.0) / 130.0) * (start_price * 0.024)
-        elif i < 1270:
-            target = start_price * 1.006 + ((i - 1180.0) / 90.0) * (start_price * 0.012)
+        # Skip weekends: 5 trading days per week (Mon=0, Tue=1, Wed=2, Thu=3, Fri=4)
+        week_idx = day_idx // 5
+        dow = day_idx % 5
+        calendar_day_offset = week_idx * 7 + dow
+        day_start_ts = start_time + calendar_day_offset * 86400
+        candle_time = day_start_ts + candle_in_day * 900
+
+        # Window 1: 0..672 (D1 Macro Bullish: L1 -> H1 -> HL2 -> HH2, Days 0..6)
+        if i < 280:
+            target = start_price + (i / 280.0) * (start_price * 0.018)
+        elif i < 460:
+            target = start_price * 1.018 - ((i - 280.0) / 180.0) * (start_price * 0.010)
+        elif i < 672:
+            target = start_price * 1.008 + ((i - 460.0) / 212.0) * (start_price * 0.018)
+        # Window 2: 672..1248 (H4 Bullish: L1 -> H1 -> HL2 -> HH2, Days 7..12)
+        elif i < 760:
+            target = start_price * 1.026 - ((i - 672.0) / 88.0) * (start_price * 0.021)
+        elif i < 920:
+            target = start_price * 1.005 + ((i - 760.0) / 160.0) * (start_price * 0.017)
+        elif i < 1040:
+            target = start_price * 1.022 - ((i - 920.0) / 120.0) * (start_price * 0.010)
+        elif i < 1248:
+            target = start_price * 1.012 + ((i - 1040.0) / 208.0) * (start_price * 0.018)
+        # Window 3: 1248..1632 (H1 Bearish: H1 -> L1 -> LH2 -> LL2, Days 13..16)
         elif i < 1360:
-            target = start_price * 1.018 - ((i - 1270.0) / 90.0) * (start_price * 0.026)
-        # Window 4: 1390..1600 (M15 Scalp Bullish: L1 -> H1 -> HL2 -> HH2)
+            target = start_price * 1.030 - ((i - 1248.0) / 112.0) * (start_price * 0.024)
         elif i < 1470:
-            target = start_price * 0.992 + ((i - 1390.0) / 80.0) * (start_price * 0.014)
-        elif i < 1530:
-            target = start_price * 1.006 - ((i - 1470.0) / 60.0) * (start_price * 0.006)
+            target = start_price * 1.006 + ((i - 1360.0) / 110.0) * (start_price * 0.012)
+        elif i < 1632:
+            target = start_price * 1.018 - ((i - 1470.0) / 162.0) * (start_price * 0.026)
+        # Window 4: 1632..1920 (M15 Scalp Bullish: L1 -> H1 -> HL2 -> HH2, Days 17..19)
+        elif i < 1720:
+            target = start_price * 0.992 + ((i - 1632.0) / 88.0) * (start_price * 0.014)
+        elif i < 1800:
+            target = start_price * 1.006 - ((i - 1720.0) / 80.0) * (start_price * 0.006)
         else:
-            target = start_price * 1.000 + ((i - 1530.0) / 70.0) * (start_price * 0.012)
+            target = start_price * 1.000 + ((i - 1800.0) / 120.0) * (start_price * 0.012)
 
         noise = (random.random() - 0.495) * volatility
         close_p = target + noise
@@ -121,19 +132,20 @@ def get_highest_candle(candles: List[Dict[str, Any]], start_idx: int, end_idx: i
 def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -> Dict[str, Any]:
     """Builds an aligned multi-timeframe dataset where lines cling directly to candle wicks."""
     random.seed(hash(pair_name) % 100000)
-    now = int(time.time())
+    # Aligned UTC Monday midnight (2026-10-05 00:00:00 UTC)
+    base_start_time = 1791158400
     decimals = 5 if base_price < 20 else 2
 
-    total_m15 = 1600
-    start_time = now - total_m15 * 900
+    # Exactly 20 trading days (Mon-Fri) * 96 M15 per day = 1920 M15 candles
+    total_m15 = 1920
 
-    # 1. Base M15
-    m15_candles = generate_base_m15_candles(start_time, total_m15, base_price, volatility)
-    # 2. H1 = 4 x M15
+    # 1. Base M15 (1920 candles)
+    m15_candles = generate_base_m15_candles(base_start_time, total_m15, base_price, volatility)
+    # 2. H1 = 4 x M15 (480 candles, 24 per day)
     h1_candles = aggregate_candles(m15_candles, 4, decimals)
-    # 3. H4 = 4 x H1
+    # 3. H4 = 4 x H1 (120 candles, 6 per day)
     h4_candles = aggregate_candles(h1_candles, 4, decimals)
-    # 4. D1 = 6 x H4
+    # 4. D1 = 6 x H4 (20 candles, 1 per day, timestamp % 86400 == 0)
     d1_candles = aggregate_candles(h4_candles, 6, decimals)
 
     # 5. D1 Bullish Market Structure: Window 1 (bars 0..6)
@@ -142,23 +154,23 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
     d1_l2 = get_lowest_candle(d1_candles, 3, 5)
     d1_h2 = get_highest_candle(d1_candles, 5, 7)
 
-    # 6. H4 Bullish Market Structure: Window 2 (bars 38..66)
-    h4_l1 = get_lowest_candle(h4_candles, 38, 44)
-    h4_h1 = get_highest_candle(h4_candles, 46, 51)
-    h4_l2 = get_lowest_candle(h4_candles, 52, 57)
-    h4_h2 = get_highest_candle(h4_candles, 58, 66)
+    # 6. H4 Bullish Market Structure: Window 2 (bars 42..78)
+    h4_l1 = get_lowest_candle(h4_candles, 42, 50)
+    h4_h1 = get_highest_candle(h4_candles, 52, 60)
+    h4_l2 = get_lowest_candle(h4_candles, 61, 68)
+    h4_h2 = get_highest_candle(h4_candles, 70, 78)
 
-    # 7. H1 Bearish Market Structure: Window 3 (bars 263..344)
-    h1_h1 = get_highest_candle(h1_candles, 263, 273)
-    h1_l1 = get_lowest_candle(h1_candles, 288, 302)
-    h1_h2 = get_highest_candle(h1_candles, 310, 324)
-    h1_l2 = get_lowest_candle(h1_candles, 332, 344)
+    # 7. H1 Bearish Market Structure: Window 3 (bars 312..408)
+    h1_h1 = get_highest_candle(h1_candles, 312, 330)
+    h1_l1 = get_lowest_candle(h1_candles, 335, 355)
+    h1_h2 = get_highest_candle(h1_candles, 365, 385)
+    h1_l2 = get_lowest_candle(h1_candles, 390, 408)
 
-    # 8. M15 Scalp Bullish Structure: Window 4 (bars 1385..1595)
-    m15_l1 = get_lowest_candle(m15_candles, 1385, 1405)
-    m15_h1 = get_highest_candle(m15_candles, 1460, 1485)
-    m15_l2 = get_lowest_candle(m15_candles, 1515, 1540)
-    m15_h2 = get_highest_candle(m15_candles, 1565, 1595)
+    # 8. M15 Scalp Bullish Structure: Window 4 (bars 1635..1915)
+    m15_l1 = get_lowest_candle(m15_candles, 1635, 1700)
+    m15_h1 = get_highest_candle(m15_candles, 1710, 1775)
+    m15_l2 = get_lowest_candle(m15_candles, 1785, 1845)
+    m15_h2 = get_highest_candle(m15_candles, 1855, 1915)
 
     pair_slug = pair_name.lower().replace('/', '_')
 
@@ -211,6 +223,19 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
                     "stretch": True,
                     "sourceTimeframe": "D1",
                     "description": "D1 Continuation Higher Low to Higher High (HL2 -> HH2)"
+                },
+                {
+                    "id": f"d1-{pair_slug}-demand-zone",
+                    "type": "zone",
+                    "color": "#06b6d4",
+                    "element": "D1 Market Structure Demand Zone",
+                    "displayName": "D1 Demand Zone",
+                    "fromTime": d1_l1["time"],
+                    "toTime": d1_h1["time"],
+                    "paddingRatio": 0.05,
+                    "stretch": True,
+                    "sourceTimeframe": "D1",
+                    "description": "D1 Major Macro Demand Zone"
                 }
             ]
         },
@@ -257,6 +282,19 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
                     "stretch": True,
                     "sourceTimeframe": "H4",
                     "description": "H4 Continuation Higher Low to Higher High (HL2 -> HH2)"
+                },
+                {
+                    "id": f"h4-{pair_slug}-accumulation-zone",
+                    "type": "zone",
+                    "color": "#8b5cf6",
+                    "element": "H4 Market Structure Accumulation Zone",
+                    "displayName": "H4 Accumulation Zone",
+                    "fromTime": h4_l1["time"],
+                    "toTime": h4_h1["time"],
+                    "paddingRatio": 0.05,
+                    "stretch": True,
+                    "sourceTimeframe": "H4",
+                    "description": "H4 Swing Base Zone"
                 }
             ]
         },
@@ -303,6 +341,19 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
                     "stretch": True,
                     "sourceTimeframe": "H1",
                     "description": "H1 Continuation Lower High to Lower Low (LH2 -> LL2)"
+                },
+                {
+                    "id": f"h1-{pair_slug}-supply-zone",
+                    "type": "zone",
+                    "color": "#f97316",
+                    "element": "H1 Market Structure Supply Zone",
+                    "displayName": "H1 Supply Zone",
+                    "fromTime": h1_h1["time"],
+                    "toTime": h1_l1["time"],
+                    "paddingRatio": 0.05,
+                    "stretch": True,
+                    "sourceTimeframe": "H1",
+                    "description": "H1 Supply Order Block Zone"
                 }
             ]
         },
@@ -349,6 +400,19 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
                     "stretch": True,
                     "sourceTimeframe": "M15",
                     "description": "M15 Scalp Continuation HL2 -> HH2"
+                },
+                {
+                    "id": f"m15-{pair_slug}-scalp-box",
+                    "type": "box",
+                    "color": "#ec4899",
+                    "element": "M15 Market Structure Scalp Range Box",
+                    "displayName": "M15 Scalp Box",
+                    "fromTime": m15_l1["time"],
+                    "toTime": m15_h1["time"],
+                    "paddingRatio": 0.05,
+                    "stretch": True,
+                    "sourceTimeframe": "M15",
+                    "description": "M15 Scalp Range Box"
                 }
             ]
         }
@@ -412,7 +476,6 @@ def save_test_dataset(data: Dict[str, Any], output_dir: str):
 
 def main():
     root_dir = os.path.dirname(os.path.abspath(__file__))
-    public_dir = os.path.join(os.path.dirname(root_dir), "public", "test_data")
     pairs = [
         ("EUR/USD", 1.08200, 0.00045),
         ("GBP/USD", 1.26500, 0.00055),
@@ -428,10 +491,9 @@ def main():
     for pair, price, vol in pairs:
         dataset = create_forex_dataset(pair, price, vol)
         save_test_dataset(dataset, root_dir)
-        save_test_dataset(dataset, public_dir)
 
     print("\n" + "=" * 65)
-    print("All line test files successfully updated in test_data/ and public/test_data/!")
+    print("All line test files successfully updated in test_data/!")
     print("=" * 65)
 
 

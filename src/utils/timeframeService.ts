@@ -278,3 +278,168 @@ function findClosestCandle(timeNum: number, candles: Candle[]): Candle | null {
   const diff2 = Math.abs(cCurr.time - timeNum);
   return diff1 < diff2 ? cPrev : cCurr;
 }
+
+export interface ResolveZoneParams {
+  fromTime?: number | string;
+  toTime?: number | string;
+  fromCandleIndex?: number;
+  toCandleIndex?: number;
+  topPrice?: number;
+  bottomPrice?: number;
+  paddingRatio?: number;
+  paddingPrice?: number;
+  sourceTimeframe?: string;
+  targetTimeframe: string;
+  targetCandles: Candle[];
+  customUnits?: Record<string, number>;
+}
+
+export interface ResolvedZoneBounds {
+  startTime: number;
+  endTime: number;
+  startCandle: Candle;
+  endCandle: Candle;
+  highestPrice: number;
+  lowestPrice: number;
+  boxTopPrice: number;
+  boxBottomPrice: number;
+  padding: number;
+  overlappingCandles: Candle[];
+}
+
+export function resolveZoneBounds({
+  fromTime,
+  toTime,
+  fromCandleIndex,
+  toCandleIndex,
+  topPrice,
+  bottomPrice,
+  paddingRatio,
+  paddingPrice,
+  sourceTimeframe,
+  targetTimeframe,
+  targetCandles,
+  customUnits,
+}: ResolveZoneParams): ResolvedZoneBounds | null {
+  if (targetCandles.length === 0) return null;
+
+  const srcTf = sourceTimeframe || targetTimeframe;
+  if (!canInheritTimeframe(srcTf, targetTimeframe, customUnits)) {
+    return null;
+  }
+
+  const srcDuration = parseTimeframeDuration(srcTf, customUnits);
+  const targetDuration = parseTimeframeDuration(targetTimeframe, customUnits);
+
+  let rawStartTime: number | undefined;
+  let rawEndTime: number | undefined;
+
+  if (fromTime !== undefined) {
+    rawStartTime =
+      typeof fromTime === 'number' ? fromTime : normalizeTimestamp(fromTime);
+  }
+  if (toTime !== undefined) {
+    rawEndTime =
+      typeof toTime === 'number' ? toTime : normalizeTimestamp(toTime);
+  }
+
+  if (rawStartTime === undefined && fromCandleIndex !== undefined) {
+    const c = targetCandles[fromCandleIndex];
+    if (c) rawStartTime = c.time;
+  }
+  if (rawEndTime === undefined && toCandleIndex !== undefined) {
+    const c = targetCandles[toCandleIndex];
+    if (c) rawEndTime = c.time;
+  }
+
+  if (rawStartTime === undefined && rawEndTime === undefined) {
+    return null;
+  }
+
+  if (rawStartTime === undefined) {
+    rawStartTime = rawEndTime!;
+  }
+  if (rawEndTime === undefined) {
+    rawEndTime = rawStartTime;
+  }
+
+  const minTime = Math.min(rawStartTime, rawEndTime);
+  const maxTime = Math.max(rawStartTime, rawEndTime);
+
+  const windowStart = minTime;
+  const windowEnd = maxTime + srcDuration;
+
+  const startIdx = Math.max(
+    0,
+    findFirstCandleIndexAtOrAfter(windowStart - targetDuration, targetCandles),
+  );
+
+  const overlappingCandles: Candle[] = [];
+  for (let i = startIdx; i < targetCandles.length; i++) {
+    const c = targetCandles[i];
+    if (!c) continue;
+    const cStart = c.time;
+    const cEnd = cStart + targetDuration;
+
+    if (cStart < windowEnd && cEnd > windowStart) {
+      overlappingCandles.push(c);
+    } else if (cStart >= windowEnd) {
+      break;
+    }
+  }
+
+  if (overlappingCandles.length === 0) {
+    const matched = findClosestCandle(windowStart, targetCandles);
+    if (!matched) return null;
+    overlappingCandles.push(matched);
+  }
+
+  let highestHigh = overlappingCandles[0]!.high;
+  let lowestLow = overlappingCandles[0]!.low;
+
+  for (let i = 1; i < overlappingCandles.length; i++) {
+    const c = overlappingCandles[i]!;
+    if (c.high > highestHigh) highestHigh = c.high;
+    if (c.low < lowestLow) lowestLow = c.low;
+  }
+
+  if (topPrice !== undefined) {
+    highestHigh = topPrice;
+  }
+  if (bottomPrice !== undefined) {
+    lowestLow = bottomPrice;
+  }
+
+  const priceSpan = Math.max(0, highestHigh - lowestLow);
+  const defaultPaddingRatio = 0.05;
+  const effectiveRatio =
+    paddingRatio !== undefined ? paddingRatio : defaultPaddingRatio;
+
+  const pad =
+    paddingPrice !== undefined
+      ? paddingPrice
+      : priceSpan > 0
+        ? priceSpan * effectiveRatio
+        : highestHigh > 0
+          ? highestHigh * 0.001
+          : 0.0001;
+
+  const boxTopPrice = highestHigh + pad;
+  const boxBottomPrice = lowestLow - pad;
+
+  const startCandle = overlappingCandles[0]!;
+  const endCandle = overlappingCandles[overlappingCandles.length - 1]!;
+
+  return {
+    startTime: startCandle.time,
+    endTime: endCandle.time,
+    startCandle,
+    endCandle,
+    highestPrice: highestHigh,
+    lowestPrice: lowestLow,
+    boxTopPrice,
+    boxBottomPrice,
+    padding: pad,
+    overlappingCandles,
+  };
+}

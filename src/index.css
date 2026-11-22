@@ -8,7 +8,15 @@
     system-ui,
     -apple-system,
     sans-serif;
+  color-scheme: dark light;
+}
+
+html.dark {
   color-scheme: dark;
+}
+
+html.light {
+  color-scheme: light;
 }
 
 code,
@@ -26,14 +34,23 @@ pre,
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: transparent;
 }
 
-::-webkit-scrollbar-thumb {
+.dark ::-webkit-scrollbar-thumb {
   background: #334155;
   border-radius: 3px;
 }
 
-::-webkit-scrollbar-thumb:hover {
+.dark ::-webkit-scrollbar-thumb:hover {
   background: #475569;
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

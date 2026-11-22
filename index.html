@@ -1,10 +1,27 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/candlestick.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Forex Candlestick Chart & Drawing Analyzer</title>
+    <script>
+      (function () {
+        try {
+          var key = 'forex_chart_theme';
+          var stored = localStorage.getItem(key);
+          var theme =
+            stored === 'dark' || stored === 'light'
+              ? stored
+              : window.matchMedia &&
+                  window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light';
+          document.documentElement.classList.add(theme);
+          document.documentElement.style.colorScheme = theme;
+        } catch (e) {}
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -13,7 +30,7 @@
     />
   </head>
   <body
-    class="bg-[#0b0e14] text-slate-100 antialiased font-sans overflow-hidden"
+    class="bg-slate-50 dark:bg-[#0b0e14] text-slate-800 dark:text-slate-100 antialiased font-sans overflow-hidden transition-colors duration-200"
   >
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
