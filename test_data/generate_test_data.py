@@ -111,7 +111,14 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
     # 4. D1 = 6 x H4
     d1_candles = aggregate_candles(h4_candles, 6, decimals)
 
-    # 5. Swing points on H4
+    # 5. Swing points on D1
+    d1_lows = find_swing_lows(d1_candles, 2)
+    d1_highs = find_swing_highs(d1_candles, 2)
+    d1_l1 = d1_candles[d1_lows[0] if len(d1_lows) > 0 else 2]
+    d1_h1 = d1_candles[d1_highs[0] if len(d1_highs) > 0 else 5]
+    d1_l2 = d1_candles[d1_lows[1] if len(d1_lows) > 1 else 8]
+
+    # 6. Swing points on H4
     h4_lows = find_swing_lows(h4_candles, 3)
     h4_highs = find_swing_highs(h4_candles, 3)
 
@@ -125,7 +132,7 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
     c_high1 = h4_candles[high1_idx]
     c_high2 = h4_candles[high2_idx]
 
-    # 6. Swing points on H1
+    # 7. Swing points on H1
     h1_lows = find_swing_lows(h1_candles, 4)
     h1_highs = find_swing_highs(h1_candles, 4)
     h1_low1_idx = h1_lows[2] if len(h1_lows) > 2 else 40
@@ -135,7 +142,7 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
     h1_c_high1 = h1_candles[h1_high1_idx]
     h1_c_low2 = h1_candles[h1_low2_idx]
 
-    # 7. Swing points on M15
+    # 8. Swing points on M15
     m15_lows = find_swing_lows(m15_candles, 6)
     m15_highs = find_swing_highs(m15_candles, 6)
     m15_l1_idx = m15_lows[-4] if len(m15_lows) > 3 else len(m15_candles) - 180
@@ -144,105 +151,184 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
     m15_c_high2 = m15_candles[m15_h2_idx]
 
     # =========================================================================
-    # 1. COMMON DRAWINGS (Chỉ có 2 chiều: Tăng 'up' hoặc Giảm 'down', KHÔNG có label)
-    # - Chiều tăng: Đáy nến 1 (Low) -> Đỉnh nến 2 (High)
-    # - Chiều giảm: Đỉnh nến 1 (High) -> Đáy nến 2 (Low)
-    # =========================================================================
-    common_drawings = [
-        {
-            "id": f"common-{pair_name.lower()}-bullish-line",
-            "type": "line",
-            "direction": "up", # Chiều tăng: Đáy nến đầu -> Đỉnh nến cuối
-            "color": "#10b981",
-            "fromTime": c_low1["time"],
-            "toTime": c_high1["time"],
-            "lineWidth": 2,
-            "stretch": True,
-            "description": "Bullish line from candle 1 Low to candle 2 High across all timeframes."
-        },
-        {
-            "id": f"common-{pair_name.lower()}-bearish-line",
-            "type": "line",
-            "direction": "down", # Chiều giảm: Đỉnh nến đầu -> Đáy nến cuối
-            "color": "#ef4444",
-            "fromTime": c_high1["time"],
-            "toTime": c_low2["time"],
-            "lineWidth": 2,
-            "stretch": True,
-            "description": "Bearish line from candle 1 High to candle 2 Low across all timeframes."
-        }
-    ]
-
-    # =========================================================================
-    # 2. SPECIFIC DRAWINGS (Chỉ có 2 chiều: Tăng 'up' hoặc Giảm 'down', KHÔNG có label)
+    # TIMEFRAME-SPECIFIC MARKET STRUCTURE (HH / HL & LH / LL)
+    # - 1-Way Downward Inheritance (D1 -> H4 -> H1 -> M15)
+    # - NO commonDrawings (Tất cả lines xài riêng cho từng timeframe)
     # =========================================================================
     timeframes_dict = {
-        # --- H4 (4-Hour) ---
+        # --- D1 (Daily Macro Structure) ---
+        "D1": {
+            "candles": d1_candles,
+            "drawings": [
+                {
+                    "id": f"d1-{pair_name.lower()}-ms-leg1",
+                    "type": "line",
+                    "direction": "up",
+                    "color": "#10b981",
+                    "element": "D1 Bullish Market Structure (HH/HL)",
+                    "fromTime": d1_l1["time"],
+                    "toTime": d1_h1["time"],
+                    "lineWidth": 2.5,
+                    "stretch": True,
+                    "sourceTimeframe": "D1",
+                    "description": "D1 Higher Low (HL) to Higher High (HH)"
+                },
+                {
+                    "id": f"d1-{pair_name.lower()}-ms-leg2",
+                    "type": "line",
+                    "direction": "down",
+                    "color": "#f59e0b",
+                    "element": "D1 Bullish Market Structure (HH/HL)",
+                    "fromTime": d1_h1["time"],
+                    "toTime": d1_l2["time"],
+                    "lineWidth": 2.5,
+                    "stretch": True,
+                    "sourceTimeframe": "D1",
+                    "description": "D1 Higher High pullback to Higher Low (HH -> HL)"
+                }
+            ]
+        },
+
+        # --- H4 (4-Hour Market Structure) ---
         "H4": {
             "candles": h4_candles,
             "drawings": [
                 {
-                    "id": f"h4-{pair_name.lower()}-swing-up",
+                    "id": f"h4-{pair_name.lower()}-ms-leg1",
                     "type": "line",
                     "direction": "up",
                     "color": "#38bdf8",
+                    "element": "H4 Bullish Market Structure (HH/HL)",
                     "fromTime": c_low1["time"],
+                    "toTime": c_high1["time"],
+                    "lineWidth": 2,
+                    "stretch": True,
+                    "sourceTimeframe": "H4",
+                    "description": "H4 Higher Low to Higher High (HL1 -> HH1)"
+                },
+                {
+                    "id": f"h4-{pair_name.lower()}-ms-leg2",
+                    "type": "line",
+                    "direction": "down",
+                    "color": "#fb7185",
+                    "element": "H4 Bullish Market Structure (HH/HL)",
+                    "fromTime": c_high1["time"],
+                    "toTime": c_low2["time"],
+                    "lineWidth": 2,
+                    "stretch": True,
+                    "sourceTimeframe": "H4",
+                    "description": "H4 Pullback Higher High to Higher Low (HH1 -> HL2)"
+                },
+                {
+                    "id": f"h4-{pair_name.lower()}-ms-leg3",
+                    "type": "line",
+                    "direction": "up",
+                    "color": "#38bdf8",
+                    "element": "H4 Bullish Market Structure (HH/HL)",
+                    "fromTime": c_low2["time"],
                     "toTime": c_high2["time"],
                     "lineWidth": 2,
-                    "stretch": True, # Kéo dãn theo nến trên H1 và M15
-                    "description": "H4 Bullish line (candle 1 Low -> candle 2 High), stretches across H1 and M15."
+                    "stretch": True,
+                    "sourceTimeframe": "H4",
+                    "description": "H4 Continuation Higher Low to Higher High (HL2 -> HH2)"
                 }
             ]
         },
 
-        # --- H1 (1-Hour) ---
+        # --- H1 (1-Hour Bearish Market Structure) ---
         "H1": {
             "candles": h1_candles,
             "drawings": [
                 {
-                    "id": f"h1-{pair_name.lower()}-intraday-down",
+                    "id": f"h1-{pair_name.lower()}-ms-leg1",
                     "type": "line",
                     "direction": "down",
-                    "color": "#eab308",
+                    "color": "#ef4444",
+                    "element": "H1 Bearish Market Structure (LH/LL)",
+                    "fromTime": h1_c_high1["time"],
+                    "toTime": h1_c_low1["time"],
+                    "lineWidth": 2,
+                    "stretch": True,
+                    "sourceTimeframe": "H1",
+                    "description": "H1 Lower High to Lower Low (LH1 -> LL1)"
+                },
+                {
+                    "id": f"h1-{pair_name.lower()}-ms-leg2",
+                    "type": "line",
+                    "direction": "up",
+                    "color": "#fbbf24",
+                    "element": "H1 Bearish Market Structure (LH/LL)",
+                    "fromTime": h1_c_low1["time"],
+                    "toTime": h1_c_high1["time"],
+                    "lineWidth": 2,
+                    "stretch": True,
+                    "sourceTimeframe": "H1",
+                    "description": "H1 Pullback Lower Low to Lower High"
+                },
+                {
+                    "id": f"h1-{pair_name.lower()}-ms-leg3",
+                    "type": "line",
+                    "direction": "down",
+                    "color": "#ef4444",
+                    "element": "H1 Bearish Market Structure (LH/LL)",
                     "fromTime": h1_c_high1["time"],
                     "toTime": h1_c_low2["time"],
                     "lineWidth": 2,
                     "stretch": True,
-                    "description": "H1 Intraday Bearish line (candle 1 High -> candle 2 Low)."
+                    "sourceTimeframe": "H1",
+                    "description": "H1 Continuation Lower High to Lower Low (LH2 -> LL2)"
                 }
             ]
         },
 
-        # --- M15 (15-Minute) ---
+        # --- M15 (15-Minute Scalp Structure) ---
         "M15": {
             "candles": m15_candles,
             "drawings": [
                 {
-                    "id": f"m15-{pair_name.lower()}-scalp-up",
+                    "id": f"m15-{pair_name.lower()}-ms-leg1",
                     "type": "line",
                     "direction": "up",
                     "color": "#a855f7",
+                    "element": "M15 Scalp Structure (HH/HL)",
                     "fromTime": m15_c_low1["time"],
                     "toTime": m15_c_high2["time"],
                     "lineWidth": 2,
-                    "stretch": False, # Cố định ở M15
-                    "description": "M15 Scalp Bullish line (candle 1 Low -> candle 2 High)."
+                    "stretch": True,
+                    "sourceTimeframe": "M15",
+                    "description": "M15 Scalp HL -> HH"
                 }
             ]
-        },
-
-        # --- D1 (Daily) ---
-        "D1": {
-            "candles": d1_candles,
-            "drawings": []
         }
     }
 
+    # Timeframe Units (in Seconds)
+    timeframe_units = {
+        "D1": 86400,
+        "H4": 14400,
+        "H1": 3600,
+        "M15": 900,
+        "M5": 300,
+        "M2": 120,
+        "M1": 60
+    }
+
+    # 1-Way Downward Conversion Ratios (Larger -> Smaller)
+    timeframe_conversions = [
+        {"from": "D1", "to": "H4", "ratio": 6.0},
+        {"from": "H4", "to": "H1", "ratio": 4.0},
+        {"from": "H1", "to": "M15", "ratio": 4.0},
+        {"from": "M15", "to": "M5", "ratio": 3.0},
+        {"from": "M5", "to": "M2", "ratio": 2.5}, # Non-divisible scenario
+        {"from": "M2", "to": "M1", "ratio": 2.0}
+    ]
+
     return {
         "symbol": pair_name,
-        "title": f"{pair_name} Multi-Timeframe Line Structure",
-        "description": "Candles and lines are 100% price-consistent across all timeframes. Lines snap to actual candle wicks.",
-        "commonDrawings": common_drawings,
+        "title": f"{pair_name} Multi-Timeframe Market Structure",
+        "description": "Market Structure (HH/HL, LH/LL) with 1-way downward inheritance and wick-perfect snapping.",
+        "timeframeUnits": timeframe_units,
+        "timeframeConversions": timeframe_conversions,
         "timeframes": timeframes_dict,
         "defaultTimeframe": "H4"
     }

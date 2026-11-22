@@ -6,6 +6,7 @@ import {
   type TimeframeData,
   type LineDirection,
   type PriceOption,
+  type TimeframeConversion,
 } from '../types/chart.js';
 
 export function normalizeTimestamp(input: number | string | undefined): number {
@@ -76,6 +77,7 @@ export function normalizeLineDirection(
 export function normalizeDrawings(
   rawDrawings: unknown[],
   sourceTimeframe?: string,
+  defaultGroup?: string,
 ): LineDrawing[] {
   if (!Array.isArray(rawDrawings)) return [];
 
@@ -98,6 +100,20 @@ export function normalizeDrawings(
     const stretch = d.stretch !== undefined ? Boolean(d.stretch) : true;
     const visible = d.visible !== undefined ? Boolean(d.visible) : true;
 
+    const elementName =
+      typeof d.element === 'string' && d.element.trim() !== ''
+        ? d.element.trim()
+        : typeof d.elementId === 'string' && d.elementId.trim() !== ''
+          ? d.elementId.trim()
+          : typeof d.group === 'string' && d.group.trim() !== ''
+            ? d.group.trim()
+            : typeof d.groupId === 'string' && d.groupId.trim() !== ''
+              ? d.groupId.trim()
+              : typeof d.groupName === 'string' && d.groupName.trim() !== ''
+                ? d.groupName.trim()
+                : defaultGroup ||
+                  (sourceTimeframe ? `Timeframe ${sourceTimeframe}` : 'Common');
+
     const fromPrice: PriceOption = direction === 'up' ? 'low' : 'high';
     const toPrice: PriceOption = direction === 'up' ? 'high' : 'low';
 
@@ -106,6 +122,8 @@ export function normalizeDrawings(
       type: 'line',
       direction,
       color,
+      element: elementName,
+      group: elementName,
       fromTime:
         d.fromTime !== undefined
           ? normalizeTimestamp(d.fromTime as number | string)
@@ -130,6 +148,39 @@ export function normalizeDrawings(
   });
 }
 
+function extractDrawingsWithGroups(
+  drawingsArray: unknown,
+  groupsArray: unknown,
+  sourceTimeframe?: string,
+): LineDrawing[] {
+  const result: LineDrawing[] = [];
+
+  if (Array.isArray(drawingsArray)) {
+    result.push(...normalizeDrawings(drawingsArray, sourceTimeframe));
+  }
+
+  if (Array.isArray(groupsArray)) {
+    for (const g of groupsArray as Array<Record<string, unknown>>) {
+      if (g && typeof g === 'object') {
+        const groupName =
+          typeof g.name === 'string' && g.name.trim() !== ''
+            ? g.name.trim()
+            : typeof g.id === 'string' && g.id.trim() !== ''
+              ? g.id.trim()
+              : undefined;
+        const gDrawings = g.drawings || g.lines;
+        if (Array.isArray(gDrawings)) {
+          result.push(
+            ...normalizeDrawings(gDrawings, sourceTimeframe, groupName),
+          );
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
 export function standardizeChartData(raw: unknown): ForexChartData {
   if (!raw || typeof raw !== 'object') {
     throw new Error('Invalid JSON structure: expected an object.');
@@ -148,8 +199,12 @@ export function standardizeChartData(raw: unknown): ForexChartData {
       : `${symbol} Multi-Timeframe Chart`;
   const description =
     typeof rawObj.description === 'string' ? rawObj.description : '';
-  const commonDrawings = normalizeDrawings(
-    (rawObj.commonDrawings || rawObj.globalDrawings || []) as unknown[],
+  const commonDrawings = extractDrawingsWithGroups(
+    rawObj.commonDrawings || rawObj.globalDrawings || rawObj.drawings,
+    rawObj.commonElements ||
+      rawObj.elements ||
+      rawObj.commonGroups ||
+      rawObj.groups,
   );
 
   const timeframes: { [tf: string]: TimeframeData } = {};
@@ -163,8 +218,9 @@ export function standardizeChartData(raw: unknown): ForexChartData {
         if (Array.isArray(tfObj.candles)) {
           timeframes[tfKey] = {
             candles: normalizeCandles(tfObj.candles),
-            drawings: normalizeDrawings(
-              (tfObj.drawings || []) as unknown[],
+            drawings: extractDrawingsWithGroups(
+              tfObj.drawings || tfObj.lines,
+              tfObj.elements || tfObj.groups,
               tfKey,
             ),
           };
@@ -174,7 +230,11 @@ export function standardizeChartData(raw: unknown): ForexChartData {
   } else if (Array.isArray(rawObj.candles)) {
     timeframes['D1'] = {
       candles: normalizeCandles(rawObj.candles),
-      drawings: normalizeDrawings((rawObj.drawings || []) as unknown[], 'D1'),
+      drawings: extractDrawingsWithGroups(
+        rawObj.drawings,
+        rawObj.elements || rawObj.groups,
+        'D1',
+      ),
     };
   }
 
@@ -189,10 +249,49 @@ export function standardizeChartData(raw: unknown): ForexChartData {
       ? rawObj.defaultTimeframe
       : tfKeys[0];
 
+  let timeframeUnits: Record<string, number> | undefined = undefined;
+  if (rawObj.timeframeUnits && typeof rawObj.timeframeUnits === 'object') {
+    timeframeUnits = {};
+    for (const [k, v] of Object.entries(
+      rawObj.timeframeUnits as Record<string, unknown>,
+    )) {
+      if (typeof v === 'number' && v > 0) {
+        timeframeUnits[k] = v;
+      }
+    }
+  }
+
+  let timeframeConversions: TimeframeConversion[] | undefined = undefined;
+  if (Array.isArray(rawObj.timeframeConversions)) {
+    timeframeConversions = (
+      rawObj.timeframeConversions as Array<Record<string, unknown>>
+    )
+      .filter(
+        (c) =>
+          typeof c.from === 'string' &&
+          typeof c.to === 'string' &&
+          typeof c.ratio === 'number',
+      )
+      .map((c) => ({
+        from: c.from as string,
+        to: c.to as string,
+        ratio: Number(c.ratio),
+      }));
+  }
+
+  const highestTf = tfKeys[0] || 'D1';
+  for (const d of commonDrawings) {
+    if (!d.sourceTimeframe) {
+      d.sourceTimeframe = highestTf;
+    }
+  }
+
   return {
     symbol,
     title,
     description,
+    timeframeUnits,
+    timeframeConversions,
     commonDrawings,
     timeframes,
     defaultTimeframe,

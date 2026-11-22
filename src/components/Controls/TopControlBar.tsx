@@ -11,8 +11,8 @@ interface TopControlBarProps {
   onOpenHelp: () => void;
   isPopoverOpen: boolean;
   onTogglePopover: () => void;
-  activeLinesCount: number;
-  visibleLinesCount: number;
+  activeElementsCount: number;
+  visibleElementsCount: number;
 }
 
 export const TopControlBar: React.FC<TopControlBarProps> = ({
@@ -24,8 +24,8 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
   onOpenHelp,
   isPopoverOpen,
   onTogglePopover,
-  activeLinesCount,
-  visibleLinesCount,
+  activeElementsCount,
+  visibleElementsCount,
 }) => {
   const timeframes = Object.keys(chartData.timeframes || {});
 
@@ -82,16 +82,16 @@ export const TopControlBar: React.FC<TopControlBarProps> = ({
               ? 'bg-sky-500/25 text-sky-300 border-sky-500/60 shadow-sm'
               : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
           }`}
-          title="Show / Hide active lines in this timeframe"
+          title="Show / Hide active elements in this timeframe"
         >
-          {visibleLinesCount > 0 ? (
+          {visibleElementsCount > 0 ? (
             <Eye className="w-3.5 h-3.5 text-sky-400" />
           ) : (
             <EyeOff className="w-3.5 h-3.5 text-slate-500" />
           )}
-          <span>Show/Hide Item</span>
+          <span>Elements</span>
           <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/40 text-sky-300 font-mono">
-            {visibleLinesCount}/{activeLinesCount}
+            {visibleElementsCount}/{activeElementsCount}
           </span>
         </button>
 

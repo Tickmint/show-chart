@@ -1,32 +1,39 @@
 import type React from 'react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import {
   type ForexChartData,
   type LineDrawing,
   type OHLCData,
   type TimeframeData,
+  type ChartElement,
 } from './types/chart.js';
 import { getSampleForexData } from './utils/sampleData.js';
+import { canInheritTimeframe } from './utils/timeframeService.js';
 import { TopControlBar } from './components/Controls/TopControlBar.js';
 import { LineItemsPopover } from './components/Controls/LineItemsPopover.js';
-import { ForexChart } from './components/Chart/ForexChart.js';
+import {
+  ForexChart,
+  type ForexChartRef,
+} from './components/Chart/ForexChart.js';
 import { StatusBar } from './components/StatusBar/StatusBar.js';
 import { UploadModal } from './components/Modals/UploadModal.js';
 import { SchemaHelpModal } from './components/Modals/SchemaHelpModal.js';
 
 export const App: React.FC = () => {
+  const chartRef = useRef<ForexChartRef>(null);
   const [chartData, setChartData] = useState<ForexChartData>(() =>
     getSampleForexData(),
   );
   const [currentTimeframe, setCurrentTimeframe] = useState<string>('H4');
 
-  const [individualVisibility, setIndividualVisibility] = useState<{
+  const [elementVisibility, setElementVisibility] = useState<{
     [id: string]: boolean;
   }>({});
 
   const [isPopoverOpen, setIsPopoverOpen] = useState<boolean>(false);
 
   const [hoveredDrawingId, setHoveredDrawingId] = useState<string | null>(null);
+  const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
   const [crosshairOHLC, setCrosshairOHLC] = useState<OHLCData | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState<boolean>(false);
@@ -62,23 +69,59 @@ export const App: React.FC = () => {
 
   const currentActiveLines = useMemo(() => {
     return allDrawings.filter((d) => {
-      const isCommon = !d.sourceTimeframe;
-      const isCurrentTf = d.sourceTimeframe === currentTimeframe;
-      if (!isCommon && !isCurrentTf && d.stretch === false) {
-        return false;
+      const srcTf = d.sourceTimeframe;
+      if (srcTf) {
+        return canInheritTimeframe(
+          srcTf,
+          currentTimeframe,
+          chartData.timeframeUnits,
+        );
       }
       return true;
     });
-  }, [allDrawings, currentTimeframe]);
+  }, [allDrawings, currentTimeframe, chartData.timeframeUnits]);
 
-  const visibleLinesCount = useMemo(() => {
-    return currentActiveLines.filter(
-      (d) => individualVisibility[d.id] !== false,
-    ).length;
-  }, [currentActiveLines, individualVisibility]);
+  const activeElements = useMemo(() => {
+    const map = new Map<string, ChartElement>();
 
-  const handleToggleIndividualVisibility = (id: string) => {
-    setIndividualVisibility((prev) => ({
+    for (const d of currentActiveLines) {
+      const elId =
+        d.element ||
+        d.group ||
+        (d.sourceTimeframe ? `Timeframe ${d.sourceTimeframe}` : 'Common');
+
+      const existing = map.get(elId);
+      if (existing) {
+        existing.drawings.push(d);
+        if (!existing.colors.includes(d.color)) {
+          existing.colors.push(d.color);
+        }
+      } else {
+        map.set(elId, {
+          id: elId,
+          name: elId,
+          color: d.color,
+          sourceTimeframe: d.sourceTimeframe,
+          drawings: [d],
+          colors: [d.color],
+        });
+      }
+    }
+
+    return Array.from(map.values());
+  }, [currentActiveLines]);
+
+  const visibleElementsCount = useMemo(() => {
+    return activeElements.filter((el) => elementVisibility[el.id] !== false)
+      .length;
+  }, [activeElements, elementVisibility]);
+
+  const handleCrosshairMove = useCallback((data: OHLCData | null) => {
+    setCrosshairOHLC(data);
+  }, []);
+
+  const handleToggleElementVisibility = (id: string) => {
+    setElementVisibility((prev) => ({
       ...prev,
       [id]: prev[id] === undefined ? false : !prev[id],
     }));
@@ -88,7 +131,7 @@ export const App: React.FC = () => {
     const sample = getSampleForexData();
     setChartData(sample);
     setCurrentTimeframe(sample.defaultTimeframe || 'H4');
-    setIndividualVisibility({});
+    setElementVisibility({});
   };
 
   const handleDataLoaded = (newData: ForexChartData) => {
@@ -97,7 +140,7 @@ export const App: React.FC = () => {
     if (tfs.length > 0) {
       setCurrentTimeframe(newData.defaultTimeframe || tfs[0] || 'H4');
     }
-    setIndividualVisibility({});
+    setElementVisibility({});
   };
 
   return (
@@ -111,33 +154,36 @@ export const App: React.FC = () => {
         onOpenHelp={() => setIsHelpModalOpen(true)}
         isPopoverOpen={isPopoverOpen}
         onTogglePopover={() => setIsPopoverOpen((prev) => !prev)}
-        activeLinesCount={currentActiveLines.length}
-        visibleLinesCount={visibleLinesCount}
+        activeElementsCount={activeElements.length}
+        visibleElementsCount={visibleElementsCount}
       />
 
       <div className="flex-1 flex overflow-hidden relative">
         <main className="flex-1 h-full relative">
           <ForexChart
+            ref={chartRef}
             candles={currentTfData.candles}
             drawings={currentActiveLines}
             currentTimeframe={currentTimeframe}
+            timeframeUnits={chartData.timeframeUnits}
             isDrawingsVisible={true}
             scopeFilter={{ common: true, timeframe: true }}
-            individualVisibility={individualVisibility}
+            elementVisibility={elementVisibility}
             hoveredDrawingId={hoveredDrawingId}
+            hoveredElementId={hoveredElementId}
             onHoverDrawing={setHoveredDrawingId}
-            onCrosshairMove={setCrosshairOHLC}
+            onCrosshairMove={handleCrosshairMove}
           />
 
           <LineItemsPopover
             isOpen={isPopoverOpen}
             onClose={() => setIsPopoverOpen(false)}
-            drawings={currentActiveLines}
+            elements={activeElements}
             currentTimeframe={currentTimeframe}
-            individualVisibility={individualVisibility}
-            onToggleVisibility={handleToggleIndividualVisibility}
-            hoveredDrawingId={hoveredDrawingId}
-            onHoverDrawing={setHoveredDrawingId}
+            elementVisibility={elementVisibility}
+            onToggleElementVisibility={handleToggleElementVisibility}
+            hoveredElementId={hoveredElementId}
+            onHoverElement={setHoveredElementId}
           />
         </main>
       </div>
@@ -147,8 +193,8 @@ export const App: React.FC = () => {
         currentTimeframe={currentTimeframe}
         candlesCount={currentTfData.candles.length}
         symbol={chartData.symbol || 'EUR/USD'}
-        visibleDrawingsCount={visibleLinesCount}
-        totalDrawingsCount={currentActiveLines.length}
+        visibleElementsCount={visibleElementsCount}
+        totalElementsCount={activeElements.length}
       />
 
       <UploadModal

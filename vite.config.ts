@@ -12,6 +12,20 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    open: true,
+    open: false,
+    warmup: {
+      clientFiles: ['./src/main.tsx', './src/App.tsx'],
+    },
+  },
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'lightweight-charts',
+      'lucide-react',
+      'pako',
+      'clsx',
+      'tailwind-merge',
+    ],
   },
 });

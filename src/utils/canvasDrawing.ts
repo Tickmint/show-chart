@@ -4,59 +4,22 @@ import {
   type Time,
 } from 'lightweight-charts';
 import { type Candle, type LineDrawing } from '../types/chart.js';
-import { normalizeTimestamp } from './fileParser.js';
+import { resolveAnchorPoint } from './timeframeService.js';
 
-export function findMatchingCandle(
-  timeVal: number | string | undefined,
-  candleIndex: number | undefined,
-  candles: Candle[],
-): Candle | null {
-  if (candles.length === 0) return null;
+interface AnchorPoint {
+  time: number;
+  price: number;
+}
 
-  const firstCandle = candles[0];
-  const lastCandle = candles[candles.length - 1];
-  if (!firstCandle || !lastCandle) return null;
+interface AnchorPair {
+  pt1: AnchorPoint;
+  pt2: AnchorPoint;
+}
 
-  if (
-    candleIndex !== undefined &&
-    candleIndex >= 0 &&
-    candleIndex < candles.length
-  ) {
-    return candles[candleIndex] ?? null;
-  }
+const anchorCache = new Map<string, AnchorPair>();
 
-  if (timeVal !== undefined) {
-    const timeNum =
-      typeof timeVal === 'number' ? timeVal : normalizeTimestamp(timeVal);
-
-    if (timeNum <= firstCandle.time) return firstCandle;
-    if (timeNum >= lastCandle.time) return lastCandle;
-
-    let low = 0;
-    let high = candles.length - 1;
-    while (low <= high) {
-      const mid = Math.floor((low + high) / 2);
-      const midCandle = candles[mid];
-      if (midCandle && midCandle.time < timeNum) {
-        low = mid + 1;
-      } else {
-        high = mid - 1;
-      }
-    }
-
-    const idx = Math.min(candles.length - 1, Math.max(0, low));
-    const prevIdx = Math.max(0, idx - 1);
-    const cPrev = candles[prevIdx];
-    const cCurr = candles[idx];
-    if (!cPrev || !cCurr) return cCurr ?? cPrev ?? null;
-
-    const diff1 = Math.abs(cPrev.time - timeNum);
-    const diff2 = Math.abs(cCurr.time - timeNum);
-
-    return diff1 < diff2 ? cPrev : cCurr;
-  }
-
-  return null;
+export function clearAnchorCache(): void {
+  anchorCache.clear();
 }
 
 export function renderLine(
@@ -66,31 +29,64 @@ export function renderLine(
   timeScale: ITimeScaleApi<Time>,
   series: ISeriesApi<'Candlestick'>,
   isHovered: boolean,
+  currentTimeframe?: string,
+  timeframeUnits?: Record<string, number>,
 ): void {
-  const c1 = findMatchingCandle(
-    drawing.fromTime,
-    drawing.fromCandleIndex,
-    candles,
-  );
-  const c2 = findMatchingCandle(drawing.toTime, drawing.toCandleIndex, candles);
+  if (candles.length === 0) return;
 
-  if (!c1 || !c2) return;
-
-  const isC1First = c1.time <= c2.time;
-  const firstCandle = isC1First ? c1 : c2;
-  const lastCandle = isC1First ? c2 : c1;
+  const srcTf = drawing.sourceTimeframe || currentTimeframe || 'H4';
+  const targetTf = currentTimeframe || 'H4';
 
   const isUp =
     drawing.direction === 'up' ||
     (!drawing.direction && drawing.fromPrice === 'low');
 
-  const firstPrice = isUp ? firstCandle.low : firstCandle.high;
-  const lastPrice = isUp ? lastCandle.high : lastCandle.low;
+  const firstPriceType = isUp
+    ? (drawing.fromPrice ?? 'low')
+    : (drawing.fromPrice ?? 'high');
+  const lastPriceType = isUp
+    ? (drawing.toPrice ?? 'high')
+    : (drawing.toPrice ?? 'low');
 
-  const x1 = timeScale.timeToCoordinate(firstCandle.time as Time);
-  const y1 = series.priceToCoordinate(firstPrice);
-  const x2 = timeScale.timeToCoordinate(lastCandle.time as Time);
-  const y2 = series.priceToCoordinate(lastPrice);
+  const cacheKey = `${drawing.id}_${srcTf}_${targetTf}_${candles.length}_${candles[0]?.time ?? 0}`;
+  let anchors = anchorCache.get(cacheKey);
+
+  if (!anchors) {
+    const pt1 = resolveAnchorPoint({
+      candleTime: drawing.fromTime,
+      candleIndex: drawing.fromCandleIndex,
+      sourceTimeframe: srcTf,
+      targetTimeframe: targetTf,
+      priceType: firstPriceType,
+      targetCandles: candles,
+      customUnits: timeframeUnits,
+    });
+
+    const pt2 = resolveAnchorPoint({
+      candleTime: drawing.toTime,
+      candleIndex: drawing.toCandleIndex,
+      sourceTimeframe: srcTf,
+      targetTimeframe: targetTf,
+      priceType: lastPriceType,
+      targetCandles: candles,
+      customUnits: timeframeUnits,
+    });
+
+    if (!pt1 || !pt2) return;
+    anchors = { pt1, pt2 };
+    anchorCache.set(cacheKey, anchors);
+  }
+
+  const { pt1, pt2 } = anchors;
+
+  const isPt1First = pt1.time <= pt2.time;
+  const pStart = isPt1First ? pt1 : pt2;
+  const pEnd = isPt1First ? pt2 : pt1;
+
+  const x1 = timeScale.timeToCoordinate(pStart.time as Time);
+  const y1 = series.priceToCoordinate(pStart.price);
+  const x2 = timeScale.timeToCoordinate(pEnd.time as Time);
+  const y2 = series.priceToCoordinate(pEnd.price);
 
   if (x1 === null || y1 === null || x2 === null || y2 === null) return;
 
@@ -105,12 +101,6 @@ export function renderLine(
   ctx.moveTo(x1, y1);
   ctx.lineTo(x2, y2);
   ctx.stroke();
-
-  ctx.fillStyle = isHovered ? '#ffffff' : drawing.color;
-  ctx.beginPath();
-  ctx.arc(x1, y1, 3.5, 0, Math.PI * 2);
-  ctx.arc(x2, y2, 3.5, 0, Math.PI * 2);
-  ctx.fill();
 
   ctx.restore();
 }

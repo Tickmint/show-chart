@@ -15,6 +15,8 @@ export interface LineDrawing {
   type: 'line';
   direction: LineDirection;
   color: string;
+  element?: string;
+  group?: string;
   fromTime?: number | string;
   toTime?: number | string;
   fromPrice?: PriceOption;
@@ -31,6 +33,23 @@ export interface LineDrawing {
 
 export type Drawing = LineDrawing;
 
+export interface ChartElement {
+  id: string;
+  name: string;
+  color: string;
+  sourceTimeframe?: string;
+  drawings: LineDrawing[];
+  colors: string[];
+}
+
+export type DrawingGroup = ChartElement;
+
+export interface TimeframeConversion {
+  from: string;
+  to: string;
+  ratio: number;
+}
+
 export interface TimeframeData {
   candles: Candle[];
   drawings?: Drawing[];
@@ -40,6 +59,8 @@ export interface ForexChartData {
   symbol?: string;
   title?: string;
   description?: string;
+  timeframeUnits?: Record<string, number>;
+  timeframeConversions?: TimeframeConversion[];
   commonDrawings?: Drawing[];
   timeframes: {
     [timeframeKey: string]: TimeframeData;

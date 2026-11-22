@@ -6,8 +6,8 @@ interface StatusBarProps {
   currentTimeframe: string;
   candlesCount: number;
   symbol: string;
-  visibleDrawingsCount: number;
-  totalDrawingsCount: number;
+  visibleElementsCount: number;
+  totalElementsCount: number;
 }
 
 export const StatusBar: React.FC<StatusBarProps> = ({
@@ -15,8 +15,8 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   currentTimeframe,
   candlesCount,
   symbol,
-  visibleDrawingsCount,
-  totalDrawingsCount,
+  visibleElementsCount,
+  totalElementsCount,
 }) => {
   const formatDate = (timestampSec: number) => {
     const d = new Date(timestampSec * 1000);
@@ -90,9 +90,9 @@ export const StatusBar: React.FC<StatusBarProps> = ({
         </div>
         <div className="h-3 w-[1px] bg-slate-800" />
         <div>
-          Drawings:{' '}
-          <strong className="text-indigo-400">
-            {visibleDrawingsCount}/{totalDrawingsCount}
+          Elements:{' '}
+          <strong className="text-sky-400">
+            {visibleElementsCount}/{totalElementsCount}
           </strong>
         </div>
       </div>
