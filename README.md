@@ -34,9 +34,9 @@ It supports importing candlestick data and technical lines via **plain JSON** (`
    - Popover hiển thị danh sách dạng từng dòng gọn gàng, có huy hiệu khung thời gian nguồn (`H4`, `H1`), không hiển thị số lượng line con rườm rà.
    - Rê chuột vào Element nào thì toàn bộ cấu trúc của Element đó trên biểu đồ sẽ cùng sáng lên.
 
-6. **Tập tin kiểm thử tập trung (`test_data/` & `verify-script/tests/`)**:
+6. **Tập tin kiểm thử tập trung (`test_data/` & `tests/`)**:
    - Thư mục `test_data/` chứa script Python `generate_test_data.py` sinh dữ liệu chuẩn hóa Market Structure.
-   - Bộ test tự động kiểm tra tỷ lệ chuyển đổi, quy tắc thừa kế 1 chiều và thuật toán neo bám nến con.
+   - Thư mục `tests/` sử dụng Vitest kiểm tra tự động tỷ lệ chuyển đổi, quy tắc thừa kế 1 chiều và thuật toán neo bám nến con.
 
 ---
 
@@ -129,6 +129,12 @@ npm run dev
 
 ```bash
 npm run build
+```
+
+### Chạy Tests
+
+```bash
+npm test
 ```
 
 ### Kiểm tra toàn bộ mã nguồn & chạy Tests

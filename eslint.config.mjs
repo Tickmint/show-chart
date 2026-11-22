@@ -57,7 +57,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['verify-script/**', 'src/utils/**', 'test_data/**'],
+    files: ['verify-script/**', 'src/utils/**', 'test_data/**', 'tests/**'],
     rules: {
       'no-console': 'off',
     },
