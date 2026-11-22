@@ -3,55 +3,89 @@
 Forex Candlestick & Multi-Timeframe Line Test Data Generator
 - Timeframes are aggregated (M15 -> H1 -> H4 -> D1) so price action is 100% consistent across all timeframes.
 - Lines SNAP to real candle swing highs / swing lows (bám sát đồ thị thật).
-- Lines start strictly from (candle 1, price 1) to (candle 2, price 2) as solid lines.
-- NO labels for lines (label không cần cho line, đã xoá bỏ hoàn toàn).
-- Kéo dãn theo thứ tự nến khi chuyển từ H4 sang H1 và M15 (chuẩn TradingView).
+- Continuous, unbroken Zigzag Market Structure (HH/HL, LH/LL) following standard price action.
+- End-to-end connected legs: Leg 1 (L1 -> H1), Leg 2 (H1 -> HL2), Leg 3 (HL2 -> HH2).
+- Strictly non-overlapping time windows across timeframes (D1, H4, H1, M15 lines do not collide).
+- High-contrast colors distinct from candlestick colors (NO green #10b981, NO red #ef4444).
 - Outputs both plain JSON (.json) and compressed GZIP (.json.gz).
 """
 
 import os
 import json
 import gzip
-import math
 import random
 import time
 from typing import Dict, List, Any
 
 
-def generate_base_m15_candles(start_time: int, count: int, start_price: float, volatility: float) -> List[Dict[str, Any]]:
-    """Generates continuous base M15 candlestick series."""
+def generate_base_m15_candles(
+    start_time: int,
+    count: int,
+    start_price: float,
+    volatility: float
+) -> List[Dict[str, Any]]:
+    """Generates continuous base M15 candlestick series with distinct, separated Market Structure waves."""
     candles = []
-    current_close = start_price
+    decimals = 5 if start_price < 20 else 2
 
     for i in range(count):
         candle_time = start_time + i * 900
-        macro_cycle = math.sin(i / 160.0) * 0.0003 * start_price
-        medium_cycle = math.cos(i / 35.0) * 0.00015 * start_price
-        random_step = (random.random() - 0.495) * volatility
-        drift = macro_cycle + medium_cycle + random_step
 
-        decimals = 5 if start_price < 20 else 2
-        open_p = round(current_close, decimals)
-        close_p = round(max(0.0001, open_p + drift), decimals)
+        # Window 1: 0..576 (D1 Macro Bullish: L1 -> H1 -> HL2 -> HH2)
+        if i < 240:
+            target = start_price + (i / 240.0) * (start_price * 0.018)
+        elif i < 400:
+            target = start_price * 1.018 - ((i - 240.0) / 160.0) * (start_price * 0.010)
+        elif i < 576:
+            target = start_price * 1.008 + ((i - 400.0) / 176.0) * (start_price * 0.018)
+        # Window 2: 576..1050 (H4 Bullish: L1 -> H1 -> HL2 -> HH2)
+        elif i < 650:
+            target = start_price * 1.026 - ((i - 576.0) / 74.0) * (start_price * 0.021)
+        elif i < 780:
+            target = start_price * 1.005 + ((i - 650.0) / 130.0) * (start_price * 0.017)
+        elif i < 880:
+            target = base_price = start_price * 1.022 - ((i - 780.0) / 100.0) * (start_price * 0.010)
+        elif i < 1050:
+            target = start_price * 1.012 + ((i - 880.0) / 170.0) * (start_price * 0.018)
+        # Window 3: 1050..1360 (H1 Bearish: H1 -> L1 -> LH2 -> LL2)
+        elif i < 1180:
+            target = start_price * 1.030 - ((i - 1050.0) / 130.0) * (start_price * 0.024)
+        elif i < 1270:
+            target = start_price * 1.006 + ((i - 1180.0) / 90.0) * (start_price * 0.012)
+        elif i < 1360:
+            target = start_price * 1.018 - ((i - 1270.0) / 90.0) * (start_price * 0.026)
+        # Window 4: 1390..1600 (M15 Scalp Bullish: L1 -> H1 -> HL2 -> HH2)
+        elif i < 1470:
+            target = start_price * 0.992 + ((i - 1390.0) / 80.0) * (start_price * 0.014)
+        elif i < 1530:
+            target = start_price * 1.006 - ((i - 1470.0) / 60.0) * (start_price * 0.006)
+        else:
+            target = start_price * 1.000 + ((i - 1530.0) / 70.0) * (start_price * 0.012)
 
-        wick_high = abs(random.random() * volatility * 1.2)
-        wick_low = abs(random.random() * volatility * 1.2)
-        high_p = round(max(open_p, close_p) + wick_high, decimals)
-        low_p = round(min(open_p, close_p) - wick_low, decimals)
+        noise = (random.random() - 0.495) * volatility
+        close_p = target + noise
+        open_p = close_p - (random.random() - 0.5) * volatility * 0.8
+        wick_high = abs(random.random()) * volatility * 1.2
+        wick_low = abs(random.random()) * volatility * 1.2
+        high_p = max(open_p, close_p) + wick_high
+        low_p = min(open_p, close_p) - wick_low
 
         candles.append({
             "time": candle_time,
-            "open": open_p,
-            "high": high_p,
-            "low": low_p,
-            "close": close_p
+            "open": round(open_p, decimals),
+            "high": round(high_p, decimals),
+            "low": round(low_p, decimals),
+            "close": round(close_p, decimals)
         })
-        current_close = close_p
 
     return candles
 
 
-def aggregate_candles(base_candles: List[Dict[str, Any]], group_size: int, decimals: int) -> List[Dict[str, Any]]:
+def aggregate_candles(
+    base_candles: List[Dict[str, Any]],
+    group_size: int,
+    decimals: int
+) -> List[Dict[str, Any]]:
     """Aggregates smaller timeframe candles into larger ones (M15 -> H1 -> H4 -> D1)."""
     aggregated = []
     for i in range(0, len(base_candles), group_size):
@@ -74,32 +108,23 @@ def aggregate_candles(base_candles: List[Dict[str, Any]], group_size: int, decim
     return aggregated
 
 
-def find_swing_lows(candles: List[Dict[str, Any]], window: int = 3) -> List[int]:
-    """Finds indices of local swing lows (troughs) touching candle wicks."""
-    lows = []
-    for i in range(window, len(candles) - window):
-        val = candles[i]["low"]
-        if all(val < candles[i - w]["low"] and val < candles[i + w]["low"] for w in range(1, window + 1)):
-            lows.append(i)
-    return lows
+def get_lowest_candle(candles: List[Dict[str, Any]], start_idx: int, end_idx: int) -> Dict[str, Any]:
+    sub = candles[start_idx:end_idx]
+    return min(sub, key=lambda c: c["low"])
 
 
-def find_swing_highs(candles: List[Dict[str, Any]], window: int = 3) -> List[int]:
-    """Finds indices of local swing highs (peaks) touching candle wicks."""
-    highs = []
-    for i in range(window, len(candles) - window):
-        val = candles[i]["high"]
-        if all(val > candles[i - w]["high"] and val > candles[i + w]["high"] for w in range(1, window + 1)):
-            highs.append(i)
-    return highs
+def get_highest_candle(candles: List[Dict[str, Any]], start_idx: int, end_idx: int) -> Dict[str, Any]:
+    sub = candles[start_idx:end_idx]
+    return max(sub, key=lambda c: c["high"])
 
 
 def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -> Dict[str, Any]:
     """Builds an aligned multi-timeframe dataset where lines cling directly to candle wicks."""
+    random.seed(hash(pair_name) % 100000)
     now = int(time.time())
     decimals = 5 if base_price < 20 else 2
-    
-    total_m15 = 1600 # 400 hours
+
+    total_m15 = 1600
     start_time = now - total_m15 * 900
 
     # 1. Base M15
@@ -111,122 +136,123 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
     # 4. D1 = 6 x H4
     d1_candles = aggregate_candles(h4_candles, 6, decimals)
 
-    # 5. Swing points on D1
-    d1_lows = find_swing_lows(d1_candles, 2)
-    d1_highs = find_swing_highs(d1_candles, 2)
-    d1_l1 = d1_candles[d1_lows[0] if len(d1_lows) > 0 else 2]
-    d1_h1 = d1_candles[d1_highs[0] if len(d1_highs) > 0 else 5]
-    d1_l2 = d1_candles[d1_lows[1] if len(d1_lows) > 1 else 8]
+    # 5. D1 Bullish Market Structure: Window 1 (bars 0..6)
+    d1_l1 = get_lowest_candle(d1_candles, 0, 2)
+    d1_h1 = get_highest_candle(d1_candles, 2, 4)
+    d1_l2 = get_lowest_candle(d1_candles, 3, 5)
+    d1_h2 = get_highest_candle(d1_candles, 5, 7)
 
-    # 6. Swing points on H4
-    h4_lows = find_swing_lows(h4_candles, 3)
-    h4_highs = find_swing_highs(h4_candles, 3)
+    # 6. H4 Bullish Market Structure: Window 2 (bars 38..66)
+    h4_l1 = get_lowest_candle(h4_candles, 38, 44)
+    h4_h1 = get_highest_candle(h4_candles, 46, 51)
+    h4_l2 = get_lowest_candle(h4_candles, 52, 57)
+    h4_h2 = get_highest_candle(h4_candles, 58, 66)
 
-    low1_idx = h4_lows[1] if len(h4_lows) > 1 else 15
-    low2_idx = h4_lows[-2] if len(h4_lows) > 3 else min(len(h4_candles) - 5, low1_idx + 40)
-    high1_idx = h4_highs[1] if len(h4_highs) > 1 else 25
-    high2_idx = h4_highs[-2] if len(h4_highs) > 3 else min(len(h4_candles) - 5, high1_idx + 40)
+    # 7. H1 Bearish Market Structure: Window 3 (bars 263..344)
+    h1_h1 = get_highest_candle(h1_candles, 263, 273)
+    h1_l1 = get_lowest_candle(h1_candles, 288, 302)
+    h1_h2 = get_highest_candle(h1_candles, 310, 324)
+    h1_l2 = get_lowest_candle(h1_candles, 332, 344)
 
-    c_low1 = h4_candles[low1_idx]
-    c_low2 = h4_candles[low2_idx]
-    c_high1 = h4_candles[high1_idx]
-    c_high2 = h4_candles[high2_idx]
+    # 8. M15 Scalp Bullish Structure: Window 4 (bars 1385..1595)
+    m15_l1 = get_lowest_candle(m15_candles, 1385, 1405)
+    m15_h1 = get_highest_candle(m15_candles, 1460, 1485)
+    m15_l2 = get_lowest_candle(m15_candles, 1515, 1540)
+    m15_h2 = get_highest_candle(m15_candles, 1565, 1595)
 
-    # 7. Swing points on H1
-    h1_lows = find_swing_lows(h1_candles, 4)
-    h1_highs = find_swing_highs(h1_candles, 4)
-    h1_low1_idx = h1_lows[2] if len(h1_lows) > 2 else 40
-    h1_high1_idx = h1_highs[2] if len(h1_highs) > 2 else 60
-    h1_low2_idx = h1_lows[5] if len(h1_lows) > 5 else 120
-    h1_c_low1 = h1_candles[h1_low1_idx]
-    h1_c_high1 = h1_candles[h1_high1_idx]
-    h1_c_low2 = h1_candles[h1_low2_idx]
+    pair_slug = pair_name.lower().replace('/', '_')
 
-    # 8. Swing points on M15
-    m15_lows = find_swing_lows(m15_candles, 6)
-    m15_highs = find_swing_highs(m15_candles, 6)
-    m15_l1_idx = m15_lows[-4] if len(m15_lows) > 3 else len(m15_candles) - 180
-    m15_h2_idx = m15_highs[-2] if len(m15_highs) > 1 else len(m15_candles) - 50
-    m15_c_low1 = m15_candles[m15_l1_idx]
-    m15_c_high2 = m15_candles[m15_h2_idx]
+    # Color Palette: High-contrast, vibrant, and strictly distinct from green/red candles
+    # D1  : Electric Cyan (#06b6d4) & Tangerine Orange (#fb923c)
+    # H4  : Royal Violet/Purple (#8b5cf6) & Warm Coral Pink (#fb7185)
+    # H1  : Vivid Orange (#f97316) & Sunshine Gold (#facc15)
+    # M15 : Hot Fuchsia/Pink (#ec4899) & Deep Sky Blue (#0ea5e9)
 
-    # =========================================================================
-    # TIMEFRAME-SPECIFIC MARKET STRUCTURE (HH / HL & LH / LL)
-    # - 1-Way Downward Inheritance (D1 -> H4 -> H1 -> M15)
-    # - NO commonDrawings (Tất cả lines xài riêng cho từng timeframe)
-    # =========================================================================
     timeframes_dict = {
-        # --- D1 (Daily Macro Structure) ---
+        # --- D1 (Daily Macro Bullish Structure: L1 -> H1 -> HL2 -> HH2) ---
         "D1": {
             "candles": d1_candles,
             "drawings": [
                 {
-                    "id": f"d1-{pair_name.lower()}-ms-leg1",
+                    "id": f"d1-{pair_slug}-ms-leg1",
                     "type": "line",
                     "direction": "up",
-                    "color": "#10b981",
+                    "color": "#06b6d4",
                     "element": "D1 Bullish Market Structure (HH/HL)",
                     "fromTime": d1_l1["time"],
                     "toTime": d1_h1["time"],
                     "lineWidth": 2.5,
                     "stretch": True,
                     "sourceTimeframe": "D1",
-                    "description": "D1 Higher Low (HL) to Higher High (HH)"
+                    "description": "D1 Swing Low to Swing High (L1 -> H1)"
                 },
                 {
-                    "id": f"d1-{pair_name.lower()}-ms-leg2",
+                    "id": f"d1-{pair_slug}-ms-leg2",
                     "type": "line",
                     "direction": "down",
-                    "color": "#f59e0b",
+                    "color": "#fb923c",
                     "element": "D1 Bullish Market Structure (HH/HL)",
                     "fromTime": d1_h1["time"],
                     "toTime": d1_l2["time"],
                     "lineWidth": 2.5,
                     "stretch": True,
                     "sourceTimeframe": "D1",
-                    "description": "D1 Higher High pullback to Higher Low (HH -> HL)"
+                    "description": "D1 Pullback Swing High to Higher Low (H1 -> HL2)"
+                },
+                {
+                    "id": f"d1-{pair_slug}-ms-leg3",
+                    "type": "line",
+                    "direction": "up",
+                    "color": "#06b6d4",
+                    "element": "D1 Bullish Market Structure (HH/HL)",
+                    "fromTime": d1_l2["time"],
+                    "toTime": d1_h2["time"],
+                    "lineWidth": 2.5,
+                    "stretch": True,
+                    "sourceTimeframe": "D1",
+                    "description": "D1 Continuation Higher Low to Higher High (HL2 -> HH2)"
                 }
             ]
         },
 
-        # --- H4 (4-Hour Market Structure) ---
+        # --- H4 (4-Hour Bullish Market Structure: L1 -> H1 -> HL2 -> HH2) ---
         "H4": {
             "candles": h4_candles,
             "drawings": [
                 {
-                    "id": f"h4-{pair_name.lower()}-ms-leg1",
+                    "id": f"h4-{pair_slug}-ms-leg1",
                     "type": "line",
                     "direction": "up",
-                    "color": "#38bdf8",
+                    "color": "#8b5cf6",
                     "element": "H4 Bullish Market Structure (HH/HL)",
-                    "fromTime": c_low1["time"],
-                    "toTime": c_high1["time"],
+                    "fromTime": h4_l1["time"],
+                    "toTime": h4_h1["time"],
                     "lineWidth": 2,
                     "stretch": True,
                     "sourceTimeframe": "H4",
-                    "description": "H4 Higher Low to Higher High (HL1 -> HH1)"
+                    "description": "H4 Swing Low to Swing High (L1 -> H1)"
                 },
                 {
-                    "id": f"h4-{pair_name.lower()}-ms-leg2",
+                    "id": f"h4-{pair_slug}-ms-leg2",
                     "type": "line",
                     "direction": "down",
                     "color": "#fb7185",
                     "element": "H4 Bullish Market Structure (HH/HL)",
-                    "fromTime": c_high1["time"],
-                    "toTime": c_low2["time"],
+                    "fromTime": h4_h1["time"],
+                    "toTime": h4_l2["time"],
                     "lineWidth": 2,
                     "stretch": True,
                     "sourceTimeframe": "H4",
-                    "description": "H4 Pullback Higher High to Higher Low (HH1 -> HL2)"
+                    "description": "H4 Pullback Swing High to Higher Low (H1 -> HL2)"
                 },
                 {
-                    "id": f"h4-{pair_name.lower()}-ms-leg3",
+                    "id": f"h4-{pair_slug}-ms-leg3",
                     "type": "line",
                     "direction": "up",
-                    "color": "#38bdf8",
+                    "color": "#8b5cf6",
                     "element": "H4 Bullish Market Structure (HH/HL)",
-                    "fromTime": c_low2["time"],
-                    "toTime": c_high2["time"],
+                    "fromTime": h4_l2["time"],
+                    "toTime": h4_h2["time"],
                     "lineWidth": 2,
                     "stretch": True,
                     "sourceTimeframe": "H4",
@@ -235,44 +261,44 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
             ]
         },
 
-        # --- H1 (1-Hour Bearish Market Structure) ---
+        # --- H1 (1-Hour Bearish Market Structure: H1 -> L1 -> LH2 -> LL2) ---
         "H1": {
             "candles": h1_candles,
             "drawings": [
                 {
-                    "id": f"h1-{pair_name.lower()}-ms-leg1",
+                    "id": f"h1-{pair_slug}-ms-leg1",
                     "type": "line",
                     "direction": "down",
-                    "color": "#ef4444",
+                    "color": "#f97316",
                     "element": "H1 Bearish Market Structure (LH/LL)",
-                    "fromTime": h1_c_high1["time"],
-                    "toTime": h1_c_low1["time"],
+                    "fromTime": h1_h1["time"],
+                    "toTime": h1_l1["time"],
                     "lineWidth": 2,
                     "stretch": True,
                     "sourceTimeframe": "H1",
-                    "description": "H1 Lower High to Lower Low (LH1 -> LL1)"
+                    "description": "H1 Swing High to Swing Low (H1 -> L1)"
                 },
                 {
-                    "id": f"h1-{pair_name.lower()}-ms-leg2",
+                    "id": f"h1-{pair_slug}-ms-leg2",
                     "type": "line",
                     "direction": "up",
-                    "color": "#fbbf24",
+                    "color": "#facc15",
                     "element": "H1 Bearish Market Structure (LH/LL)",
-                    "fromTime": h1_c_low1["time"],
-                    "toTime": h1_c_high1["time"],
+                    "fromTime": h1_l1["time"],
+                    "toTime": h1_h2["time"],
                     "lineWidth": 2,
                     "stretch": True,
                     "sourceTimeframe": "H1",
-                    "description": "H1 Pullback Lower Low to Lower High"
+                    "description": "H1 Retracement Swing Low to Lower High (L1 -> LH2)"
                 },
                 {
-                    "id": f"h1-{pair_name.lower()}-ms-leg3",
+                    "id": f"h1-{pair_slug}-ms-leg3",
                     "type": "line",
                     "direction": "down",
-                    "color": "#ef4444",
+                    "color": "#f97316",
                     "element": "H1 Bearish Market Structure (LH/LL)",
-                    "fromTime": h1_c_high1["time"],
-                    "toTime": h1_c_low2["time"],
+                    "fromTime": h1_h2["time"],
+                    "toTime": h1_l2["time"],
                     "lineWidth": 2,
                     "stretch": True,
                     "sourceTimeframe": "H1",
@@ -281,28 +307,53 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
             ]
         },
 
-        # --- M15 (15-Minute Scalp Structure) ---
+        # --- M15 (15-Minute Scalp Bullish Structure: L1 -> H1 -> HL2 -> HH2) ---
         "M15": {
             "candles": m15_candles,
             "drawings": [
                 {
-                    "id": f"m15-{pair_name.lower()}-ms-leg1",
+                    "id": f"m15-{pair_slug}-ms-leg1",
                     "type": "line",
                     "direction": "up",
-                    "color": "#a855f7",
+                    "color": "#ec4899",
                     "element": "M15 Scalp Structure (HH/HL)",
-                    "fromTime": m15_c_low1["time"],
-                    "toTime": m15_c_high2["time"],
+                    "fromTime": m15_l1["time"],
+                    "toTime": m15_h1["time"],
                     "lineWidth": 2,
                     "stretch": True,
                     "sourceTimeframe": "M15",
-                    "description": "M15 Scalp HL -> HH"
+                    "description": "M15 Scalp L1 -> H1"
+                },
+                {
+                    "id": f"m15-{pair_slug}-ms-leg2",
+                    "type": "line",
+                    "direction": "down",
+                    "color": "#0ea5e9",
+                    "element": "M15 Scalp Structure (HH/HL)",
+                    "fromTime": m15_h1["time"],
+                    "toTime": m15_l2["time"],
+                    "lineWidth": 2,
+                    "stretch": True,
+                    "sourceTimeframe": "M15",
+                    "description": "M15 Scalp Pullback H1 -> HL2"
+                },
+                {
+                    "id": f"m15-{pair_slug}-ms-leg3",
+                    "type": "line",
+                    "direction": "up",
+                    "color": "#ec4899",
+                    "element": "M15 Scalp Structure (HH/HL)",
+                    "fromTime": m15_l2["time"],
+                    "toTime": m15_h2["time"],
+                    "lineWidth": 2,
+                    "stretch": True,
+                    "sourceTimeframe": "M15",
+                    "description": "M15 Scalp Continuation HL2 -> HH2"
                 }
             ]
         }
     }
 
-    # Timeframe Units (in Seconds)
     timeframe_units = {
         "D1": 86400,
         "H4": 14400,
@@ -313,13 +364,12 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
         "M1": 60
     }
 
-    # 1-Way Downward Conversion Ratios (Larger -> Smaller)
     timeframe_conversions = [
         {"from": "D1", "to": "H4", "ratio": 6.0},
         {"from": "H4", "to": "H1", "ratio": 4.0},
         {"from": "H1", "to": "M15", "ratio": 4.0},
         {"from": "M15", "to": "M5", "ratio": 3.0},
-        {"from": "M5", "to": "M2", "ratio": 2.5}, # Non-divisible scenario
+        {"from": "M5", "to": "M2", "ratio": 2.5},
         {"from": "M2", "to": "M1", "ratio": 2.0}
     ]
 
@@ -329,8 +379,7 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
         "description": "Market Structure (HH/HL, LH/LL) with 1-way downward inheritance and wick-perfect snapping.",
         "timeframeUnits": timeframe_units,
         "timeframeConversions": timeframe_conversions,
-        "timeframes": timeframes_dict,
-        "defaultTimeframe": "H4"
+        "timeframes": timeframes_dict
     }
 
 
@@ -349,39 +398,40 @@ def save_test_dataset(data: Dict[str, Any], output_dir: str):
     with open(json_path, "wb") as f:
         f.write(json_bytes)
 
-    with gzip.open(gz_path, "wb") as f:
-        f.write(json_bytes)
+    with gzip.open(gz_path, "wb", compresslevel=9) as gz_f:
+        gz_f.write(json_bytes)
 
-    json_size_kb = len(json_bytes) / 1024.0
-    gz_size_kb = os.path.getsize(gz_path) / 1024.0
-    ratio = (1.0 - gz_size_kb / json_size_kb) * 100
+    orig_size = len(json_bytes) / 1024.0
+    gz_size = os.path.getsize(gz_path) / 1024.0
+    ratio = (1.0 - (gz_size / orig_size)) * 100.0
 
-    print(f"Generated: {symbol_slug}")
-    print(f"   -> JSON: {json_filename} ({json_size_kb:.1f} KB)")
-    print(f"   -> GZIP: {gz_filename} ({gz_size_kb:.1f} KB, -{ratio:.1f}% compression)\n")
+    print(f"Generated: {data['symbol']}")
+    print(f"   -> JSON: {json_filename} ({orig_size:.1f} KB)")
+    print(f"   -> GZIP: {gz_filename} ({gz_size:.1f} KB, -{ratio:.1f}% compression)")
 
 
 def main():
-    print("=" * 65)
-    print("Forex Multi-Timeframe Line JSON & GZIP Test Data Generator")
-    print("Price-Consistent Aggregation & Wick-Anchored Lines (NO LABELS)")
-    print("=" * 65 + "\n")
-
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    public_dir = os.path.join(os.path.dirname(root_dir), "public", "test_data")
     pairs = [
-        {"name": "EUR/USD", "base": 1.0850, "volatility": 0.00065},
-        {"name": "GBP/USD", "base": 1.2950, "volatility": 0.00085},
-        {"name": "USD/JPY", "base": 152.80, "volatility": 0.15000},
-        {"name": "XAU/USD", "base": 2680.0, "volatility": 2.50000},
+        ("EUR/USD", 1.08200, 0.00045),
+        ("GBP/USD", 1.26500, 0.00055),
+        ("USD/JPY", 154.20, 0.08),
+        ("XAU/USD", 2650.00, 1.8),
     ]
 
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-
-    for pair in pairs:
-        dataset = create_forex_dataset(pair["name"], pair["base"], pair["volatility"])
-        save_test_dataset(dataset, script_dir)
-
     print("=" * 65)
-    print("All line test files successfully updated in test_data/!")
+    print("Forex Multi-Timeframe Line JSON & GZIP Test Data Generator")
+    print("Zigzag Market Structure (HH/HL & LH/LL) & Wick-Anchored Lines")
+    print("=" * 65)
+
+    for pair, price, vol in pairs:
+        dataset = create_forex_dataset(pair, price, vol)
+        save_test_dataset(dataset, root_dir)
+        save_test_dataset(dataset, public_dir)
+
+    print("\n" + "=" * 65)
+    print("All line test files successfully updated in test_data/ and public/test_data/!")
     print("=" * 65)
 
 

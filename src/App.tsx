@@ -1,19 +1,24 @@
 import type React from 'react';
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Upload, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import {
   type ForexChartData,
   type LineDrawing,
   type TimeframeData,
   type ChartElement,
 } from './types/chart.js';
-import { canInheritTimeframe } from './utils/timeframeService.js';
+import {
+  canInheritTimeframe,
+  getLargestTimeframe,
+  parseTimeframeDuration,
+} from './utils/timeframeService.js';
 import { LineItemsPopover } from './components/Controls/LineItemsPopover.js';
 import {
   ForexChart,
   type ForexChartRef,
 } from './components/Chart/ForexChart.js';
 import { UploadModal } from './components/Modals/UploadModal.js';
+import { parseChartFile } from './utils/fileParser.js';
 
 export const App: React.FC = () => {
   const chartRef = useRef<ForexChartRef>(null);
@@ -30,18 +35,23 @@ export const App: React.FC = () => {
   const [isPopoverOpen, setIsPopoverOpen] = useState<boolean>(false);
   const [hoveredDrawingId, setHoveredDrawingId] = useState<string | null>(null);
   const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
 
-  const availableTimeframes = useMemo(
-    () => Object.keys(chartData.timeframes || {}),
-    [chartData.timeframes],
-  );
+  const availableTimeframes = useMemo(() => {
+    const tfs = Object.keys(chartData.timeframes || {});
+    return tfs.sort(
+      (a, b) =>
+        parseTimeframeDuration(b, chartData.timeframeUnits) -
+        parseTimeframeDuration(a, chartData.timeframeUnits),
+    );
+  }, [chartData.timeframes, chartData.timeframeUnits]);
 
   const currentTfData = useMemo(() => {
     return (
       chartData.timeframes?.[currentTimeframe] || { candles: [], drawings: [] }
     );
   }, [chartData, currentTimeframe]);
+
+  const hasCandles = currentTfData.candles.length > 0;
 
   const allDrawings = useMemo(() => {
     const list: LineDrawing[] = [];
@@ -80,10 +90,10 @@ export const App: React.FC = () => {
     });
   }, [allDrawings, currentTimeframe, chartData.timeframeUnits]);
 
-  const allElements = useMemo(() => {
+  const activeElements = useMemo(() => {
     const map = new Map<string, ChartElement>();
 
-    for (const d of allDrawings) {
+    for (const d of currentActiveLines) {
       const elId = d.element || d.group || 'Elements';
 
       const existing = map.get(elId);
@@ -104,12 +114,12 @@ export const App: React.FC = () => {
     }
 
     return Array.from(map.values());
-  }, [allDrawings]);
+  }, [currentActiveLines]);
 
   const visibleElementsCount = useMemo(() => {
-    return allElements.filter((el) => elementVisibility[el.id] !== false)
+    return activeElements.filter((el) => elementVisibility[el.id] !== false)
       .length;
-  }, [allElements, elementVisibility]);
+  }, [activeElements, elementVisibility]);
 
   const handleToggleElementVisibility = (id: string) => {
     setElementVisibility((prev) => ({
@@ -122,9 +132,21 @@ export const App: React.FC = () => {
     setChartData(newData);
     const tfs = Object.keys(newData.timeframes || {});
     if (tfs.length > 0) {
-      setCurrentTimeframe(newData.defaultTimeframe || tfs[0] || '');
+      const largestTf = getLargestTimeframe(tfs, newData.timeframeUnits);
+      setCurrentTimeframe(largestTf);
     }
     setElementVisibility({});
+  };
+
+  const handleDropOnWindow = async (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      try {
+        const { data } = await parseChartFile(file);
+        handleDataLoaded(data);
+      } catch {}
+    }
   };
 
   useEffect(() => {
@@ -143,7 +165,11 @@ export const App: React.FC = () => {
   }, [availableTimeframes]);
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-[#090d16] text-slate-100 select-none">
+    <div
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={handleDropOnWindow}
+      className="relative h-screen w-screen overflow-hidden bg-[#090d16] text-slate-100 select-none"
+    >
       {availableTimeframes.length > 0 && (
         <div className="absolute top-3 left-3 z-30 flex items-center bg-slate-900/90 p-0.5 rounded-lg border border-slate-700/80 shadow-lg backdrop-blur-md">
           {availableTimeframes.map((tf) => (
@@ -162,37 +188,30 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
-        <button
-          onClick={() => setIsUploadModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 shadow-lg backdrop-blur-md font-medium text-xs transition-all hover:border-slate-600 cursor-pointer"
-          title="Upload .json or .gz file"
-        >
-          <Upload className="w-3.5 h-3.5 text-sky-400" />
-          <span>Upload</span>
-        </button>
-
-        <button
-          id="btn-show-hide-item"
-          onClick={() => setIsPopoverOpen((prev) => !prev)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium border text-xs shadow-lg backdrop-blur-md transition-all cursor-pointer ${
-            isPopoverOpen
-              ? 'bg-sky-500/25 text-sky-300 border-sky-500/60 shadow-sky-500/10'
-              : 'bg-slate-900/90 text-slate-200 border-slate-700/80 hover:bg-slate-800 hover:border-slate-600'
-          }`}
-          title="Show / Hide active elements in this timeframe"
-        >
-          {visibleElementsCount > 0 ? (
-            <Eye className="w-3.5 h-3.5 text-sky-400" />
-          ) : (
-            <EyeOff className="w-3.5 h-3.5 text-slate-400" />
-          )}
-          <span>Elements</span>
-          <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/50 text-sky-300 font-mono">
-            {visibleElementsCount}/{allElements.length}
-          </span>
-        </button>
-      </div>
+      {hasCandles && (
+        <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
+          <button
+            id="btn-show-hide-item"
+            onClick={() => setIsPopoverOpen((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium border text-xs shadow-lg backdrop-blur-md transition-all cursor-pointer ${
+              isPopoverOpen
+                ? 'bg-sky-500/25 text-sky-300 border-sky-500/60 shadow-sky-500/10'
+                : 'bg-slate-900/90 text-slate-200 border-slate-700/80 hover:bg-slate-800 hover:border-slate-600'
+            }`}
+            title="Show / Hide active elements in this timeframe"
+          >
+            {visibleElementsCount > 0 ? (
+              <Eye className="w-3.5 h-3.5 text-sky-400" />
+            ) : (
+              <EyeOff className="w-3.5 h-3.5 text-slate-400" />
+            )}
+            <span>Elements</span>
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/50 text-sky-300 font-mono">
+              {visibleElementsCount}/{activeElements.length}
+            </span>
+          </button>
+        </div>
+      )}
 
       <main className="w-full h-full relative">
         <ForexChart
@@ -209,34 +228,10 @@ export const App: React.FC = () => {
           onHoverDrawing={setHoveredDrawingId}
         />
 
-        {currentTfData.candles.length === 0 && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-4 pointer-events-none">
-            <div className="bg-[#0e1422]/90 border border-slate-800 rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl backdrop-blur-md pointer-events-auto">
-              <div className="w-12 h-12 mx-auto rounded-full bg-sky-500/10 border border-sky-500/20 flex items-center justify-center mb-4">
-                <Upload className="w-6 h-6 text-sky-400" />
-              </div>
-              <h3 className="text-base font-semibold text-slate-100 mb-1">
-                Forex Chart Viewer
-              </h3>
-              <p className="text-xs text-slate-400 mb-5 leading-relaxed">
-                Upload a JSON or GZ chart data file to view candlesticks and
-                price action market structure.
-              </p>
-              <button
-                onClick={() => setIsUploadModalOpen(true)}
-                className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs transition-colors shadow-lg cursor-pointer"
-              >
-                <Upload className="w-4 h-4" />
-                <span>Upload Chart Data</span>
-              </button>
-            </div>
-          </div>
-        )}
-
         <LineItemsPopover
           isOpen={isPopoverOpen}
           onClose={() => setIsPopoverOpen(false)}
-          elements={allElements}
+          elements={activeElements}
           elementVisibility={elementVisibility}
           onToggleElementVisibility={handleToggleElementVisibility}
           hoveredElementId={hoveredElementId}
@@ -244,11 +239,13 @@ export const App: React.FC = () => {
         />
       </main>
 
-      <UploadModal
-        isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
-        onDataLoaded={handleDataLoaded}
-      />
+      {!hasCandles && (
+        <UploadModal
+          isOpen={true}
+          showCloseButton={false}
+          onDataLoaded={handleDataLoaded}
+        />
+      )}
     </div>
   );
 };

@@ -210,14 +210,25 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
       if (!chart || !container || candleCount === 0) return;
 
       const containerWidth = container.clientWidth || 1200;
-      const targetBarSpacing = 7;
+      const defaultBarSpacing = 11;
       const rightOffset = 12;
       const visibleBars = Math.max(
-        50,
-        Math.floor(containerWidth / targetBarSpacing),
+        40,
+        Math.floor(containerWidth / defaultBarSpacing),
       );
-      const to = candleCount - 1 + rightOffset;
-      const from = to - visibleBars;
+
+      let from: number;
+      let to: number;
+
+      if (candleCount < visibleBars) {
+        const candleCenter = (candleCount - 1) / 2;
+        const halfVisible = visibleBars / 2;
+        from = candleCenter - halfVisible;
+        to = candleCenter + halfVisible;
+      } else {
+        to = candleCount - 1 + rightOffset;
+        from = to - visibleBars;
+      }
 
       chart.timeScale().setVisibleLogicalRange({ from, to });
       chart.priceScale('right').applyOptions({ autoScale: true });
@@ -306,8 +317,8 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
           timeVisible: true,
           secondsVisible: false,
           rightOffset: 12,
-          barSpacing: 7,
-          minBarSpacing: 0.2,
+          barSpacing: 11,
+          minBarSpacing: 6,
         },
         kineticScroll: {
           touch: false,
@@ -406,15 +417,35 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
             ? logicalUnderCursor
             : (currentRange.from + currentRange.to) / 2;
 
+        const currentSpan = currentRange.to - currentRange.from;
         const newFrom = center - (center - currentRange.from) * scale;
         const newTo = center + (currentRange.to - center) * scale;
         const newSpan = newTo - newFrom;
 
-        if (newSpan >= 12 && newSpan <= 8000) {
-          timeScale.setVisibleLogicalRange({ from: newFrom, to: newTo });
-          markChartModified();
-          requestCanvasRedraw();
+        const minBarSpacing = 6;
+        const maxBarSpacing = 50;
+        const minSpan = Math.max(12, Math.floor(rect.width / maxBarSpacing));
+        const maxSpan = Math.max(
+          minSpan + 5,
+          Math.floor(rect.width / minBarSpacing),
+        );
+
+        const clampedSpan = Math.min(Math.max(newSpan, minSpan), maxSpan);
+        if (
+          Math.abs(clampedSpan - currentSpan) < 0.01 &&
+          ((scale > 1 && currentSpan >= maxSpan) ||
+            (scale < 1 && currentSpan <= minSpan))
+        ) {
+          return;
         }
+
+        const ratio = clampedSpan / currentSpan;
+        const clampedFrom = center - (center - currentRange.from) * ratio;
+        const clampedTo = center + (currentRange.to - center) * ratio;
+
+        timeScale.setVisibleLogicalRange({ from: clampedFrom, to: clampedTo });
+        markChartModified();
+        requestCanvasRedraw();
       };
 
       container.addEventListener('pointerdown', handlePointerDown);

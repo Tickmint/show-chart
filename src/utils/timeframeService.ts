@@ -53,6 +53,25 @@ export function parseTimeframeDuration(
   return 3600;
 }
 
+export function getLargestTimeframe(
+  timeframes: string[],
+  customUnits?: Record<string, number>,
+): string {
+  if (timeframes.length === 0) return '';
+  let largest = timeframes[0] || '';
+  let maxDuration = -1;
+
+  for (const tf of timeframes) {
+    const duration = parseTimeframeDuration(tf, customUnits);
+    if (duration > maxDuration) {
+      maxDuration = duration;
+      largest = tf;
+    }
+  }
+
+  return largest;
+}
+
 export function canInheritTimeframe(
   sourceTf: string | undefined,
   targetTf: string,
