@@ -16,11 +16,7 @@ import {
   CrosshairMode,
   type Time,
 } from 'lightweight-charts';
-import {
-  type Candle,
-  type LineDrawing,
-  type OHLCData,
-} from '../../types/chart.js';
+import { type Candle, type LineDrawing } from '../../types/chart.js';
 import { renderLine } from '../../utils/canvasDrawing.js';
 import { canInheritTimeframe } from '../../utils/timeframeService.js';
 
@@ -39,7 +35,6 @@ interface ForexChartProps {
   hoveredDrawingId: string | null;
   hoveredElementId: string | null;
   onHoverDrawing: (id: string | null) => void;
-  onCrosshairMove: (data: OHLCData | null) => void;
 }
 
 const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
@@ -55,7 +50,6 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
       hoveredDrawingId,
       hoveredElementId,
       onHoverDrawing,
-      onCrosshairMove,
     },
     ref,
   ) => {
@@ -129,6 +123,15 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
       ctx.scale(dpr, dpr);
       ctx.clearRect(0, 0, width, height);
 
+      const priceScaleWidth = chart.priceScale('right').width();
+      const timeScaleHeight = chart.timeScale().height();
+      const paneWidth = Math.max(0, width - priceScaleWidth);
+      const paneHeight = Math.max(0, height - timeScaleHeight);
+
+      ctx.beginPath();
+      ctx.rect(0, 0, paneWidth, paneHeight);
+      ctx.clip();
+
       const {
         candles: currentCandles,
         drawings: currentDrawings,
@@ -149,12 +152,7 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
       const timeScale = chart.timeScale();
 
       for (const drawing of currentDrawings) {
-        const elId =
-          drawing.element ||
-          drawing.group ||
-          (drawing.sourceTimeframe
-            ? `Timeframe ${drawing.sourceTimeframe}`
-            : 'Common');
+        const elId = drawing.element || drawing.group || 'Elements';
 
         if (elVis[elId] === false) continue;
         if (drawing.visible === false) continue;
@@ -206,13 +204,31 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
       });
     }, [redrawCanvas]);
 
+    const applyDefaultView = useCallback((candleCount: number) => {
+      const chart = chartRef.current;
+      const container = containerRef.current;
+      if (!chart || !container || candleCount === 0) return;
+
+      const containerWidth = container.clientWidth || 1200;
+      const targetBarSpacing = 7;
+      const rightOffset = 12;
+      const visibleBars = Math.max(
+        50,
+        Math.floor(containerWidth / targetBarSpacing),
+      );
+      const to = candleCount - 1 + rightOffset;
+      const from = to - visibleBars;
+
+      chart.timeScale().setVisibleLogicalRange({ from, to });
+      chart.priceScale('right').applyOptions({ autoScale: true });
+    }, []);
+
     const resetView = useCallback(() => {
       if (!chartRef.current) return;
-      chartRef.current.timeScale().fitContent();
-      chartRef.current.priceScale('right').applyOptions({ autoScale: true });
+      applyDefaultView(latestPropsRef.current.candles.length);
       resetChartModified();
       requestCanvasRedraw();
-    }, [requestCanvasRedraw, resetChartModified]);
+    }, [applyDefaultView, requestCanvasRedraw, resetChartModified]);
 
     const openContextMenu = useCallback((clientX: number, clientY: number) => {
       if (!isChartModifiedRef.current) {
@@ -290,7 +306,7 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
           timeVisible: true,
           secondsVisible: false,
           rightOffset: 12,
-          barSpacing: 9,
+          barSpacing: 7,
           minBarSpacing: 0.2,
         },
         kineticScroll: {
@@ -332,35 +348,6 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
       });
       chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
         requestCanvasRedraw();
-      });
-
-      chart.subscribeCrosshairMove((param) => {
-        if (!param || !param.time || !param.seriesData) {
-          onCrosshairMove(null);
-          return;
-        }
-
-        const barData = param.seriesData.get(candleSeries) as
-          | { open: number; high: number; low: number; close: number }
-          | undefined;
-        if (barData) {
-          const open = barData.open;
-          const close = barData.close;
-          const change = close - open;
-          const changePercent = open !== 0 ? (change / open) * 100 : 0;
-
-          onCrosshairMove({
-            time: Number(param.time),
-            open: barData.open,
-            high: barData.high,
-            low: barData.low,
-            close: barData.close,
-            change,
-            changePercent,
-          });
-        } else {
-          onCrosshairMove(null);
-        }
       });
 
       let pointerStartX = 0;
@@ -423,7 +410,7 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
         const newTo = center + (currentRange.to - center) * scale;
         const newSpan = newTo - newFrom;
 
-        if (newSpan >= 3 && newSpan <= 8000) {
+        if (newSpan >= 12 && newSpan <= 8000) {
           timeScale.setVisibleLogicalRange({ from: newFrom, to: newTo });
           markChartModified();
           requestCanvasRedraw();
@@ -485,7 +472,6 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
       };
     }, [
       markChartModified,
-      onCrosshairMove,
       openContextMenu,
       redrawCanvas,
       requestCanvasRedraw,
@@ -531,13 +517,10 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
       }));
       candlestickSeriesRef.current.setData(chartCandles);
 
-      if (chartRef.current) {
-        chartRef.current.timeScale().fitContent();
-      }
-
+      applyDefaultView(candles.length);
       resetChartModified();
       requestCanvasRedraw();
-    }, [candles, requestCanvasRedraw, resetChartModified]);
+    }, [candles, applyDefaultView, requestCanvasRedraw, resetChartModified]);
 
     useEffect(() => {
       resetChartModified();

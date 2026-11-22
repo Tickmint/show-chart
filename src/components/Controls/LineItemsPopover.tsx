@@ -1,13 +1,12 @@
 import type React from 'react';
 import { useRef, useEffect } from 'react';
-import { Eye, EyeOff, X, TrendingUp } from 'lucide-react';
+import { Eye, EyeOff, X, Layers } from 'lucide-react';
 import { type ChartElement } from '../../types/chart.js';
 
 interface LineItemsPopoverProps {
   isOpen: boolean;
   onClose: () => void;
   elements: ChartElement[];
-  currentTimeframe: string;
   elementVisibility: { [id: string]: boolean };
   onToggleElementVisibility: (id: string) => void;
   hoveredElementId: string | null;
@@ -18,7 +17,6 @@ export const LineItemsPopover: React.FC<LineItemsPopoverProps> = ({
   isOpen,
   onClose,
   elements,
-  currentTimeframe,
   elementVisibility,
   onToggleElementVisibility,
   hoveredElementId,
@@ -48,21 +46,19 @@ export const LineItemsPopover: React.FC<LineItemsPopoverProps> = ({
   return (
     <div
       ref={panelRef}
-      className="absolute right-4 top-12 z-40 w-80 max-h-[75vh] bg-[#0c121e] border border-slate-700/80 rounded-xl shadow-2xl flex flex-col overflow-hidden text-xs select-none backdrop-blur-md animate-fade-in"
+      className="absolute right-3 top-12 z-40 w-80 max-h-[75vh] bg-[#0c121e] border border-slate-700/80 rounded-xl shadow-2xl flex flex-col overflow-hidden text-xs select-none backdrop-blur-md animate-fade-in"
     >
       <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-slate-800 bg-slate-900/70">
         <div className="flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-sky-400" />
-          <span className="font-semibold text-slate-200">
-            Active Elements ({currentTimeframe})
-          </span>
+          <Layers className="w-4 h-4 text-sky-400" />
+          <span className="font-semibold text-slate-200">Elements</span>
           <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-400 font-mono">
             {elements.length}
           </span>
         </div>
         <button
           onClick={onClose}
-          className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+          className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
         >
           <X className="w-3.5 h-3.5" />
         </button>
@@ -98,27 +94,11 @@ export const LineItemsPopover: React.FC<LineItemsPopoverProps> = ({
                 >
                   {el.name}
                 </span>
-                {el.sourceTimeframe && (
-                  <span
-                    className={`px-1 py-0.2 rounded text-[9px] font-mono shrink-0 ${
-                      el.sourceTimeframe === currentTimeframe
-                        ? 'bg-sky-950/80 text-sky-400 border border-sky-800/60'
-                        : 'bg-slate-800/80 text-slate-400 border border-slate-700/60'
-                    }`}
-                    title={
-                      el.sourceTimeframe === currentTimeframe
-                        ? `Native on ${currentTimeframe}`
-                        : `Inherited from ${el.sourceTimeframe}`
-                    }
-                  >
-                    {el.sourceTimeframe}
-                  </span>
-                )}
               </div>
 
               <button
                 onClick={() => onToggleElementVisibility(el.id)}
-                className={`p-1.5 rounded shrink-0 transition-colors ${
+                className={`p-1.5 rounded shrink-0 transition-colors cursor-pointer ${
                   isVisible
                     ? 'text-sky-400 hover:bg-slate-800'
                     : 'text-slate-600 hover:text-slate-400 hover:bg-slate-800'
@@ -137,7 +117,7 @@ export const LineItemsPopover: React.FC<LineItemsPopoverProps> = ({
 
         {elements.length === 0 && (
           <div className="text-center py-6 text-slate-500 text-xs">
-            No active elements on {currentTimeframe}
+            No elements found
           </div>
         )}
       </div>

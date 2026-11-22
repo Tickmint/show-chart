@@ -139,84 +139,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           </div>
         </div>
 
-        <div className="mt-5 pt-4 border-t border-slate-800">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-300">
-              Or Load Generated Test Datasets:
-            </span>
-            <span className="text-[10px] text-slate-500 font-mono">
-              From /test_data/
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            {[
-              { symbol: 'EUR/USD', file: 'EUR_USD_test_data' },
-              { symbol: 'GBP/USD', file: 'GBP_USD_test_data' },
-              { symbol: 'USD/JPY', file: 'USD_JPY_test_data' },
-              { symbol: 'XAU/USD', file: 'XAU_USD_test_data' },
-            ].map((item) => (
-              <div
-                key={item.symbol}
-                className="p-2 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between"
-              >
-                <span className="font-semibold text-slate-200">
-                  {item.symbol}
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={async () => {
-                      setIsLoading(true);
-                      setError(null);
-                      try {
-                        const res = await fetch(`/test_data/${item.file}.json`);
-                        const text = await res.text();
-                        const file = new File([text], `${item.file}.json`, {
-                          type: 'application/json',
-                        });
-                        await handleProcessFile(file);
-                      } catch (err: unknown) {
-                        const msg =
-                          err instanceof Error ? err.message : String(err);
-                        setError('Failed to load test dataset: ' + msg);
-                        setIsLoading(false);
-                      }
-                    }}
-                    className="px-2 py-0.5 rounded bg-sky-950 text-sky-400 hover:bg-sky-900 border border-sky-800/60 text-[10px] font-mono transition-colors"
-                    title="Load as plain JSON"
-                  >
-                    JSON
-                  </button>
-                  <button
-                    onClick={async () => {
-                      setIsLoading(true);
-                      setError(null);
-                      try {
-                        const res = await fetch(
-                          `/test_data/${item.file}.json.gz`,
-                        );
-                        const blob = await res.blob();
-                        const file = new File([blob], `${item.file}.json.gz`, {
-                          type: 'application/gzip',
-                        });
-                        await handleProcessFile(file);
-                      } catch (err: unknown) {
-                        const msg =
-                          err instanceof Error ? err.message : String(err);
-                        setError('Failed to load test GZIP: ' + msg);
-                        setIsLoading(false);
-                      }
-                    }}
-                    className="px-2 py-0.5 rounded bg-amber-950 text-amber-400 hover:bg-amber-900 border border-amber-800/60 text-[10px] font-mono transition-colors"
-                    title="Load as compressed GZIP (.gz)"
-                  >
-                    GZ
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
         {error && (
           <div className="mt-4 p-3 rounded-lg bg-red-950/60 border border-red-800/80 text-red-300 text-xs flex items-start gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -233,7 +155,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         <div className="mt-5 pt-4 border-t border-slate-800 flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-xs rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300"
+            className="px-4 py-2 text-xs rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer"
           >
             Cancel
           </button>
