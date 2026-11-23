@@ -9,3 +9,4 @@ coverage
 *.min.js
 *.min.css
 public
+AGENTS.md

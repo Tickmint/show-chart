@@ -7,10 +7,16 @@ import {
   type Candle,
   type LineDrawing,
   type ZoneDrawing,
+  type PoiDrawing,
 } from '../types/chart.js';
 import { type ThemeMode } from '../types/theme.js';
 import { THEME_PALETTES, adaptColorForTheme } from './themeService.js';
-import { resolveAnchorPoint, resolveZoneBounds } from './timeframeService.js';
+import {
+  resolveAnchorPoint,
+  resolveZoneBounds,
+  resolvePoiBounds,
+  parseTimeframeDuration,
+} from './timeframeService.js';
 
 interface AnchorPoint {
   time: number;
@@ -423,3 +429,506 @@ export function computeZoneLabelLayout({
     clearsCandles,
   };
 }
+
+export interface PoiTextLayoutParams {
+  text: string;
+  boxLeft: number;
+  boxRight: number;
+  boxTop: number;
+  boxBottom: number;
+  midY: number;
+  candles: Candle[];
+  timeScale: ITimeScaleApi<Time>;
+  series: ISeriesApi<'Candlestick'>;
+  measureTextWidth: (str: string) => number;
+  fontSize?: number;
+  paddingRight?: number;
+  halfBar?: number;
+}
+
+export type KeyLevelTextLayoutParams = PoiTextLayoutParams;
+
+export interface PoiTextLayoutResult {
+  visible: boolean;
+  displayText: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  clearsCandles: boolean;
+  boxLeftLineEnd: number;
+  boxRightLineStart: number;
+}
+
+export type KeyLevelTextLayoutResult = PoiTextLayoutResult;
+
+export function computePoiTextLayout({
+  text,
+  boxLeft,
+  boxRight,
+  boxTop,
+  boxBottom,
+  midY,
+  candles,
+  timeScale,
+  series,
+  measureTextWidth,
+  fontSize = 11,
+  paddingRight = 14,
+  halfBar = 5.5,
+}: PoiTextLayoutParams): PoiTextLayoutResult {
+  const hiddenResult: PoiTextLayoutResult = {
+    visible: false,
+    displayText: '',
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    clearsCandles: true,
+    boxLeftLineEnd: boxRight,
+    boxRightLineStart: boxRight,
+  };
+
+  const boxWidth = Math.max(1, boxRight - boxLeft);
+  if (boxWidth < 18 || !text || text.trim() === '') {
+    return hiddenResult;
+  }
+
+  const trimmedText = text.trim();
+  const textWidth = measureTextWidth(trimmedText);
+  const textHeight = fontSize + 4;
+
+  const checkCandleOverlap = (
+    xL: number,
+    xR: number,
+    yT: number,
+    yB: number,
+  ): boolean => {
+    for (let i = 0; i < candles.length; i++) {
+      const c = candles[i]!;
+      const cX = timeScale.timeToCoordinate(c.time as Time);
+      if (cX === null) continue;
+      if (cX + halfBar < xL || cX - halfBar > xR) continue;
+
+      const cHighY = series.priceToCoordinate(c.high);
+      const cLowY = series.priceToCoordinate(c.low);
+      if (cHighY === null || cLowY === null) continue;
+
+      const candleTop = Math.min(cHighY, cLowY);
+      const candleBottom = Math.max(cHighY, cLowY);
+
+      if (Math.max(candleTop, yT) <= Math.min(candleBottom, yB)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  let maxCandleX = -Infinity;
+  for (let i = 0; i < candles.length; i++) {
+    const c = candles[i]!;
+    const cX = timeScale.timeToCoordinate(c.time as Time);
+    if (cX !== null && cX > maxCandleX) {
+      maxCandleX = cX;
+    }
+  }
+
+  const standardRight = boxRight - paddingRight;
+  const standardLeft = standardRight - textWidth;
+  const standardY = midY;
+  const standardYTop = standardY - textHeight / 2;
+  const standardYBottom = standardY + textHeight / 2;
+
+  if (standardLeft >= boxLeft + 4) {
+    const overlaps = checkCandleOverlap(
+      standardLeft - 2,
+      standardRight + 2,
+      standardYTop,
+      standardYBottom,
+    );
+
+    if (!overlaps) {
+      return {
+        visible: true,
+        displayText: trimmedText,
+        x: standardLeft,
+        y: standardY,
+        width: textWidth,
+        height: textHeight,
+        clearsCandles: true,
+        boxLeftLineEnd: Math.max(boxLeft, standardLeft - 6),
+        boxRightLineStart: Math.min(boxRight, standardRight + 6),
+      };
+    }
+  }
+
+  if (
+    maxCandleX !== -Infinity &&
+    boxRight > maxCandleX + halfBar + textWidth + 8
+  ) {
+    const freeRight = Math.min(
+      boxRight - paddingRight,
+      maxCandleX + halfBar + textWidth + 24,
+    );
+    const freeLeft = freeRight - textWidth;
+    if (freeLeft > maxCandleX + halfBar + 2) {
+      return {
+        visible: true,
+        displayText: trimmedText,
+        x: freeLeft,
+        y: standardY,
+        width: textWidth,
+        height: textHeight,
+        clearsCandles: true,
+        boxLeftLineEnd: Math.max(boxLeft, freeLeft - 6),
+        boxRightLineStart: Math.min(boxRight, freeRight + 6),
+      };
+    }
+  }
+
+  const step = Math.max(8, halfBar * 1.5);
+  for (
+    let candR = standardRight - step;
+    candR >= boxLeft + textWidth + 6;
+    candR -= step
+  ) {
+    const candL = candR - textWidth;
+    const overlaps = checkCandleOverlap(
+      candL - 2,
+      candR + 2,
+      standardYTop,
+      standardYBottom,
+    );
+    if (!overlaps) {
+      return {
+        visible: true,
+        displayText: trimmedText,
+        x: candL,
+        y: standardY,
+        width: textWidth,
+        height: textHeight,
+        clearsCandles: true,
+        boxLeftLineEnd: Math.max(boxLeft, candL - 6),
+        boxRightLineStart: Math.min(boxRight, candR + 6),
+      };
+    }
+  }
+
+  const topY = boxTop + textHeight / 2 + 2;
+  if (
+    topY + textHeight / 2 <= midY &&
+    standardLeft >= boxLeft + 4 &&
+    !checkCandleOverlap(
+      standardLeft - 2,
+      standardRight + 2,
+      topY - textHeight / 2,
+      topY + textHeight / 2,
+    )
+  ) {
+    return {
+      visible: true,
+      displayText: trimmedText,
+      x: standardLeft,
+      y: topY,
+      width: textWidth,
+      height: textHeight,
+      clearsCandles: true,
+      boxLeftLineEnd: Math.max(boxLeft, standardLeft - 6),
+      boxRightLineStart: Math.min(boxRight, standardRight + 6),
+    };
+  }
+
+  const botY = boxBottom - textHeight / 2 - 2;
+  if (
+    botY - textHeight / 2 >= midY &&
+    standardLeft >= boxLeft + 4 &&
+    !checkCandleOverlap(
+      standardLeft - 2,
+      standardRight + 2,
+      botY - textHeight / 2,
+      botY + textHeight / 2,
+    )
+  ) {
+    return {
+      visible: true,
+      displayText: trimmedText,
+      x: standardLeft,
+      y: botY,
+      width: textWidth,
+      height: textHeight,
+      clearsCandles: true,
+      boxLeftLineEnd: Math.max(boxLeft, standardLeft - 6),
+      boxRightLineStart: Math.min(boxRight, standardRight + 6),
+    };
+  }
+
+  if (standardLeft < boxLeft + 4) {
+    const availableWidth = boxWidth - 8;
+    const ellipsis = '...';
+    const ellipsisWidth = measureTextWidth(ellipsis);
+    if (ellipsisWidth <= availableWidth) {
+      let bestLen = 0;
+      for (let len = 1; len <= trimmedText.length; len++) {
+        const candidate = trimmedText.slice(0, len) + ellipsis;
+        if (measureTextWidth(candidate) <= availableWidth) {
+          bestLen = len;
+        } else {
+          break;
+        }
+      }
+      if (bestLen > 0) {
+        const truncText = trimmedText.slice(0, bestLen) + ellipsis;
+        const truncWidth = measureTextWidth(truncText);
+        const truncLeft = boxRight - paddingRight - truncWidth;
+        return {
+          visible: true,
+          displayText: truncText,
+          x: Math.max(boxLeft + 4, truncLeft),
+          y: standardY,
+          width: truncWidth,
+          height: textHeight,
+          clearsCandles: true,
+          boxLeftLineEnd: Math.max(boxLeft, truncLeft - 6),
+          boxRightLineStart: Math.min(boxRight, truncLeft + truncWidth + 6),
+        };
+      }
+    }
+    return hiddenResult;
+  }
+
+  return {
+    visible: true,
+    displayText: trimmedText,
+    x: standardLeft,
+    y: standardY,
+    width: textWidth,
+    height: textHeight,
+    clearsCandles: true,
+    boxLeftLineEnd: Math.max(boxLeft, standardLeft - 6),
+    boxRightLineStart: Math.min(boxRight, standardRight + 6),
+  };
+}
+
+export const computeKeyLevelTextLayout = computePoiTextLayout;
+
+export function renderPoi(
+  ctx: CanvasRenderingContext2D,
+  drawing: PoiDrawing,
+  candles: Candle[],
+  timeScale: ITimeScaleApi<Time>,
+  series: ISeriesApi<'Candlestick'>,
+  paneWidth: number,
+  isHovered: boolean,
+  currentTimeframe?: string,
+  timeframeUnits?: Record<string, number>,
+  theme: ThemeMode = 'dark',
+): void {
+  if (candles.length === 0) return;
+
+  const targetTf = currentTimeframe || 'H4';
+  const srcTf = drawing.sourceTimeframe || targetTf;
+
+  const bounds = resolvePoiBounds({
+    fromTime: drawing.fromTime,
+    fromCandleIndex: drawing.fromCandleIndex,
+    topPrice: drawing.topPrice,
+    bottomPrice: drawing.bottomPrice,
+    isInfinite: drawing.isInfinite,
+    mode: drawing.mode,
+    candleCount: drawing.candleCount,
+    targetCandleCount: drawing.targetCandleCount,
+    sourceTimeframe: srcTf,
+    targetTimeframe: targetTf,
+    targetCandles: candles,
+    customUnits: timeframeUnits,
+  });
+
+  if (!bounds) return;
+
+  const xStartCoord = timeScale.timeToCoordinate(
+    bounds.startCandle.time as Time,
+  );
+  if (xStartCoord === null) return;
+
+  let halfBar = 5.5;
+  const startIdx = candles.findIndex((c) => c.time === bounds.startCandle.time);
+  if (startIdx >= 0) {
+    if (startIdx + 1 < candles.length) {
+      const xNext = timeScale.timeToCoordinate(
+        candles[startIdx + 1]!.time as Time,
+      );
+      if (xNext !== null) {
+        halfBar = Math.abs(xNext - xStartCoord) / 2;
+      }
+    } else if (startIdx - 1 >= 0) {
+      const xPrev = timeScale.timeToCoordinate(
+        candles[startIdx - 1]!.time as Time,
+      );
+      if (xPrev !== null) {
+        halfBar = Math.abs(xStartCoord - xPrev) / 2;
+      }
+    }
+  }
+
+  const boxLeft = xStartCoord - halfBar;
+
+  let boxRight: number;
+  if (bounds.isInfinite) {
+    boxRight = paneWidth;
+  } else if (bounds.endCandle) {
+    const xEndCoord = timeScale.timeToCoordinate(bounds.endCandle.time as Time);
+    if (xEndCoord !== null) {
+      boxRight = xEndCoord + halfBar;
+    } else {
+      const lastC = candles[candles.length - 1]!;
+      const lastX =
+        timeScale.timeToCoordinate(lastC.time as Time) ?? paneWidth - 20;
+      const tgtDur = parseTimeframeDuration(targetTf, timeframeUnits);
+      const deltaBars = Math.max(0, (bounds.endTime! - lastC.time) / tgtDur);
+      boxRight = lastX + deltaBars * (halfBar * 2) + halfBar;
+    }
+  } else if (bounds.endTime) {
+    const lastC = candles[candles.length - 1]!;
+    const lastX =
+      timeScale.timeToCoordinate(lastC.time as Time) ?? paneWidth - 20;
+    const tgtDur = parseTimeframeDuration(targetTf, timeframeUnits);
+    const deltaBars = Math.max(0, (bounds.endTime - lastC.time) / tgtDur);
+    boxRight = lastX + deltaBars * (halfBar * 2) + halfBar;
+  } else {
+    boxRight = paneWidth;
+  }
+
+  const boxWidth = Math.max(1, boxRight - boxLeft);
+
+  const yTopCoord = series.priceToCoordinate(bounds.topPrice);
+  const yBottomCoord = series.priceToCoordinate(bounds.bottomPrice);
+  if (yTopCoord === null || yBottomCoord === null) return;
+
+  const yMin = Math.min(yTopCoord, yBottomCoord);
+  const yMax = Math.max(yTopCoord, yBottomCoord);
+  const boxHeight = Math.max(1, yMax - yMin);
+  const midY = (yMin + yMax) / 2;
+
+  ctx.save();
+
+  const baseColor = adaptColorForTheme(drawing.color || '#8a264c', theme);
+  const defaultFillColor = colorWithAlpha(
+    baseColor,
+    theme === 'dark' ? 0.48 : 0.25,
+  );
+
+  const defaultCenterLineColor = theme === 'dark' ? '#eab308' : '#ca8a04';
+  const defaultTextColor = theme === 'dark' ? '#fef08a' : '#831843';
+
+  const fillColor = drawing.fillColor
+    ? adaptColorForTheme(drawing.fillColor, theme)
+    : defaultFillColor;
+
+  ctx.fillStyle = isHovered ? colorWithAlpha(fillColor, 0.65) : fillColor;
+  ctx.fillRect(boxLeft, yMin, boxWidth, boxHeight);
+
+  if (drawing.showBorder) {
+    const borderColor = drawing.borderColor
+      ? adaptColorForTheme(drawing.borderColor, theme)
+      : defaultCenterLineColor;
+
+    ctx.strokeStyle = isHovered ? '#ffffff' : borderColor;
+    ctx.lineWidth = isHovered
+      ? (drawing.borderWidth ?? 1) + 1
+      : (drawing.borderWidth ?? 1);
+    if (drawing.borderStyle === 'dashed') {
+      ctx.setLineDash([4, 4]);
+    } else {
+      ctx.setLineDash([]);
+    }
+    ctx.strokeRect(boxLeft, yMin, boxWidth, boxHeight);
+  }
+
+  const centerLineColor = drawing.centerLineColor
+    ? adaptColorForTheme(drawing.centerLineColor, theme)
+    : drawing.borderColor
+      ? adaptColorForTheme(drawing.borderColor, theme)
+      : defaultCenterLineColor;
+
+  if (drawing.showText !== false) {
+    const rawText =
+      drawing.text ||
+      drawing.description ||
+      drawing.displayName ||
+      drawing.label ||
+      drawing.element ||
+      '';
+
+    const fontSize = drawing.textFontSize ?? 11;
+    const fontStr = `italic bold ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.font = fontStr;
+
+    const layout = computeKeyLevelTextLayout({
+      text: rawText,
+      boxLeft,
+      boxRight,
+      boxTop: yMin,
+      boxBottom: yMax,
+      midY,
+      candles,
+      timeScale,
+      series,
+      measureTextWidth: (str: string) => {
+        ctx.font = fontStr;
+        return ctx.measureText(str).width;
+      },
+      fontSize,
+      halfBar,
+      paddingRight: 14,
+    });
+
+    ctx.save();
+    ctx.strokeStyle = colorWithAlpha(centerLineColor, 0.75);
+    ctx.lineWidth = drawing.centerLineWidth ?? 1;
+    ctx.setLineDash([4, 4]);
+
+    if (layout.visible) {
+      if (layout.boxLeftLineEnd > boxLeft) {
+        ctx.beginPath();
+        ctx.moveTo(boxLeft, midY);
+        ctx.lineTo(layout.boxLeftLineEnd, midY);
+        ctx.stroke();
+      }
+      if (layout.boxRightLineStart < boxRight) {
+        ctx.beginPath();
+        ctx.moveTo(layout.boxRightLineStart, midY);
+        ctx.lineTo(boxRight, midY);
+        ctx.stroke();
+      }
+
+      const textColor = drawing.textColor
+        ? adaptColorForTheme(drawing.textColor, theme)
+        : defaultTextColor;
+
+      ctx.fillStyle = isHovered ? '#ffffff' : textColor;
+      ctx.textBaseline = 'middle';
+      ctx.font = fontStr;
+      ctx.fillText(layout.displayText, layout.x, layout.y);
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(boxLeft, midY);
+      ctx.lineTo(boxRight, midY);
+      ctx.stroke();
+    }
+    ctx.restore();
+  } else {
+    ctx.save();
+    ctx.strokeStyle = colorWithAlpha(centerLineColor, 0.75);
+    ctx.lineWidth = drawing.centerLineWidth ?? 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(boxLeft, midY);
+    ctx.lineTo(boxRight, midY);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+export const renderKeyLevel = renderPoi;

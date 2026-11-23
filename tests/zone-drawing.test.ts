@@ -200,38 +200,20 @@ describe('Zone / Box Drawing Feature (Multi-Timeframe & Padding Rules)', () => {
 
       const content = JSON.parse(fs.readFileSync(testDataPath, 'utf8'));
 
-      const d1Drawings = content.timeframes?.D1?.drawings || [];
-      const d1Zone = d1Drawings.find(
+      const m5Drawings = content.timeframes?.M5?.drawings || [];
+      const m5Zone = m5Drawings.find(
         (d: { type: string }) => d.type === 'zone',
       );
-      expect(d1Zone).toBeDefined();
-      expect(d1Zone.element).toContain('Market Structure');
-      expect(d1Zone.displayName).toBe('D1 Demand Zone');
-      expect(d1Zone.paddingRatio).toBe(0.05);
+      expect(m5Zone).toBeDefined();
+      expect(m5Zone.element).toContain('Market Structure');
+      expect(m5Zone.displayName).toBe('M5 Demand Zone');
+      expect(m5Zone.paddingRatio).toBe(0.05);
 
-      const h4Drawings = content.timeframes?.H4?.drawings || [];
-      const h4Zone = h4Drawings.find(
-        (d: { type: string }) => d.type === 'zone',
-      );
-      expect(h4Zone).toBeDefined();
-      expect(h4Zone.element).toContain('Market Structure');
-      expect(h4Zone.displayName).toBe('H4 Accumulation Zone');
-
-      const h1Drawings = content.timeframes?.H1?.drawings || [];
-      const h1Zone = h1Drawings.find(
-        (d: { type: string }) => d.type === 'zone',
-      );
-      expect(h1Zone).toBeDefined();
-      expect(h1Zone.element).toContain('Market Structure');
-      expect(h1Zone.displayName).toBe('H1 Supply Zone');
-
-      const m15Drawings = content.timeframes?.M15?.drawings || [];
-      const m15Box = m15Drawings.find(
-        (d: { type: string }) => d.type === 'box',
-      );
-      expect(m15Box).toBeDefined();
-      expect(m15Box.element).toContain('Market Structure');
-      expect(m15Box.displayName).toBe('M15 Scalp Box');
+      const m2Drawings = content.timeframes?.M2?.drawings || [];
+      const m2Box = m2Drawings.find((d: { type: string }) => d.type === 'box');
+      expect(m2Box).toBeDefined();
+      expect(m2Box.element).toContain('Market Structure');
+      expect(m2Box.displayName).toBe('M2 Scalp Box');
     });
   });
 

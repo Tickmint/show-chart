@@ -15,9 +15,18 @@ import {
   ColorType,
   type Time,
 } from 'lightweight-charts';
-import { type Candle, type Drawing, isLineDrawing } from '../../types/chart.js';
+import {
+  type Candle,
+  type Drawing,
+  isLineDrawing,
+  isPoiDrawing,
+} from '../../types/chart.js';
 import { type ThemeMode } from '../../types/theme.js';
-import { renderLine, renderZone } from '../../utils/canvasDrawing.js';
+import {
+  renderLine,
+  renderZone,
+  renderPoi,
+} from '../../utils/canvasDrawing.js';
 import { canInheritTimeframe } from '../../utils/timeframeService.js';
 import {
   THEME_PALETTES,
@@ -174,7 +183,7 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
       const timeScale = chart.timeScale();
 
       for (const drawing of currentDrawings) {
-        const elId = drawing.element || drawing.group || 'Elements';
+        const elId = drawing.group || drawing.element || 'Elements';
 
         if (elVis[elId] === false) continue;
         if (drawing.visible === false) continue;
@@ -192,6 +201,8 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
 
         if (
           !isCommon &&
+          drawing.type !== 'poi' &&
+          drawing.type !== 'keyLevel' &&
           drawing.sourceTimeframe !== currentTf &&
           drawing.stretch === false
         ) {
@@ -208,6 +219,19 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
               currentCandles,
               timeScale,
               series,
+              isHovered,
+              currentTf,
+              tfUnits,
+              currentTheme,
+            );
+          } else if (isPoiDrawing(drawing)) {
+            renderPoi(
+              ctx,
+              drawing,
+              currentCandles,
+              timeScale,
+              series,
+              paneWidth,
               isHovered,
               currentTf,
               tfUnits,

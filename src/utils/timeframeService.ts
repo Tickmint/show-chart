@@ -1,4 +1,4 @@
-import { type Candle, type PriceOption } from '../types/chart.js';
+import { type Candle, type PriceOption, type Drawing } from '../types/chart.js';
 import { normalizeTimestamp } from './fileParser.js';
 
 export const DEFAULT_TIMEFRAME_UNITS: Record<string, number> = {
@@ -443,3 +443,166 @@ export function resolveZoneBounds({
     overlappingCandles,
   };
 }
+
+export function canInheritDrawing(
+  drawing: Drawing,
+  targetTf: string,
+  customUnits?: Record<string, number>,
+): boolean {
+  if (!drawing.sourceTimeframe) return true;
+  return canInheritTimeframe(drawing.sourceTimeframe, targetTf, customUnits);
+}
+
+export interface ResolvePoiParams {
+  fromTime?: number | string;
+  fromCandleIndex?: number;
+  topPrice: number;
+  bottomPrice: number;
+  isInfinite?: boolean;
+  mode?: 'infinite' | 'finite';
+  candleCount?: number;
+  targetCandleCount?: number;
+  sourceTimeframe?: string;
+  targetTimeframe: string;
+  targetCandles: Candle[];
+  customUnits?: Record<string, number>;
+}
+
+export type ResolveKeyLevelParams = ResolvePoiParams;
+
+export interface ResolvedPoiBounds {
+  startTime: number;
+  endTime?: number;
+  startCandle: Candle;
+  endCandle?: Candle;
+  isInfinite: boolean;
+  candleCount?: number;
+  effectiveCandleCount?: number;
+  topPrice: number;
+  bottomPrice: number;
+  midPrice: number;
+  sourceTimeframe: string;
+  targetTimeframe: string;
+}
+
+export type ResolvedKeyLevelBounds = ResolvedPoiBounds;
+
+export function resolvePoiBounds({
+  fromTime,
+  fromCandleIndex,
+  topPrice,
+  bottomPrice,
+  isInfinite,
+  mode,
+  candleCount,
+  targetCandleCount,
+  sourceTimeframe,
+  targetTimeframe,
+  targetCandles,
+  customUnits,
+}: ResolvePoiParams): ResolvedPoiBounds | null {
+  if (targetCandles.length === 0) return null;
+
+  const srcTf = sourceTimeframe || targetTimeframe;
+  if (!canInheritTimeframe(srcTf, targetTimeframe, customUnits)) {
+    return null;
+  }
+
+  const srcDuration = parseTimeframeDuration(srcTf, customUnits);
+  const targetDuration = parseTimeframeDuration(targetTimeframe, customUnits);
+
+  let rawStartTime: number | undefined;
+  if (fromTime !== undefined) {
+    rawStartTime =
+      typeof fromTime === 'number' ? fromTime : normalizeTimestamp(fromTime);
+  }
+  if (rawStartTime === undefined && fromCandleIndex !== undefined) {
+    const c = targetCandles[fromCandleIndex];
+    if (c) rawStartTime = c.time;
+  }
+  if (rawStartTime === undefined) {
+    rawStartTime = targetCandles[0]?.time;
+  }
+  if (rawStartTime === undefined) return null;
+
+  let startCandle: Candle | null = null;
+  if (rawStartTime <= targetCandles[0]!.time) {
+    startCandle = targetCandles[0]!;
+  } else if (rawStartTime >= targetCandles[targetCandles.length - 1]!.time) {
+    startCandle = targetCandles[targetCandles.length - 1]!;
+  } else {
+    for (let i = 0; i < targetCandles.length; i++) {
+      const c = targetCandles[i]!;
+      if (rawStartTime >= c.time && rawStartTime < c.time + targetDuration) {
+        startCandle = c;
+        break;
+      }
+    }
+    if (!startCandle) {
+      startCandle = findClosestCandle(rawStartTime, targetCandles);
+    }
+  }
+
+  if (!startCandle) return null;
+
+  const resolvedTop = Math.max(topPrice, bottomPrice);
+  const resolvedBottom = Math.min(topPrice, bottomPrice);
+  const midPrice = (resolvedTop + resolvedBottom) / 2;
+
+  const count = candleCount ?? targetCandleCount;
+  const resolvedIsInfinite =
+    mode === 'infinite' ||
+    isInfinite === true ||
+    (mode !== 'finite' && isInfinite !== false && count === undefined);
+
+  if (resolvedIsInfinite) {
+    return {
+      startTime: startCandle.time,
+      startCandle,
+      isInfinite: true,
+      topPrice: resolvedTop,
+      bottomPrice: resolvedBottom,
+      midPrice,
+      sourceTimeframe: srcTf,
+      targetTimeframe,
+    };
+  }
+
+  const effectiveCount = count && count > 0 ? count : 1;
+  const totalDuration = effectiveCount * srcDuration;
+  const effectiveCandleCount = totalDuration / targetDuration;
+  const endTime = startCandle.time + totalDuration;
+
+  let endCandle: Candle | undefined;
+  if (endTime >= targetCandles[targetCandles.length - 1]!.time) {
+    endCandle = targetCandles[targetCandles.length - 1]!;
+  } else {
+    for (let i = targetCandles.length - 1; i >= 0; i--) {
+      const c = targetCandles[i]!;
+      if (c.time <= endTime) {
+        endCandle = c;
+        break;
+      }
+    }
+    if (!endCandle) {
+      endCandle = findClosestCandle(endTime, targetCandles) ?? undefined;
+    }
+  }
+
+  return {
+    startTime: startCandle.time,
+    endTime,
+    startCandle,
+    endCandle,
+    isInfinite: false,
+    candleCount: effectiveCount,
+    effectiveCandleCount,
+    topPrice: resolvedTop,
+    bottomPrice: resolvedBottom,
+    midPrice,
+    sourceTimeframe: srcTf,
+    targetTimeframe,
+  };
+}
+
+export const resolveKeyLevelBounds = resolvePoiBounds;

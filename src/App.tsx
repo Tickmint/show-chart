@@ -39,9 +39,6 @@ export const App: React.FC = () => {
   const [elementVisibility, setElementVisibility] = useState<{
     [id: string]: boolean;
   }>({});
-  const [customElementNames, setCustomElementNames] = useState<{
-    [id: string]: string;
-  }>({});
 
   const [isPopoverOpen, setIsPopoverOpen] = useState<boolean>(false);
   const [hoveredDrawingId, setHoveredDrawingId] = useState<string | null>(null);
@@ -136,8 +133,8 @@ export const App: React.FC = () => {
 
     for (const d of currentActiveDrawings) {
       const elId = d.element || d.group || 'Elements';
-      const customName =
-        customElementNames[elId] || d.displayName || d.element || elId;
+      const elName = d.element || d.group || d.displayName || elId;
+      const srcTf = d.sourceTimeframe || 'Common';
 
       const existing = map.get(elId);
       if (existing) {
@@ -148,9 +145,10 @@ export const App: React.FC = () => {
       } else {
         map.set(elId, {
           id: elId,
-          name: customName,
-          displayName: customName,
+          name: elName,
+          displayName: elName,
           color: d.color,
+          sourceTimeframe: srcTf,
           drawings: [d],
           colors: [d.color],
         });
@@ -158,7 +156,7 @@ export const App: React.FC = () => {
     }
 
     return Array.from(map.values());
-  }, [currentActiveDrawings, customElementNames]);
+  }, [currentActiveDrawings]);
 
   const visibleElementsCount = useMemo(() => {
     return activeElements.filter((el) => elementVisibility[el.id] !== false)
@@ -172,11 +170,21 @@ export const App: React.FC = () => {
     }));
   };
 
-  const handleUpdateElementName = (id: string, newName: string) => {
-    setCustomElementNames((prev) => ({
-      ...prev,
-      [id]: newName,
-    }));
+  const handleToggleTimeframeVisibility = (
+    timeframe: string,
+    targetVisible: boolean,
+  ) => {
+    const targetIds = activeElements
+      .filter((el) => (el.sourceTimeframe || 'Common') === timeframe)
+      .map((el) => el.id);
+
+    setElementVisibility((prev) => {
+      const next = { ...prev };
+      for (const id of targetIds) {
+        next[id] = targetVisible;
+      }
+      return next;
+    });
   };
 
   const handleDataLoaded = (newData: ForexChartData) => {
@@ -187,7 +195,6 @@ export const App: React.FC = () => {
       setCurrentTimeframe(largestTf);
     }
     setElementVisibility({});
-    setCustomElementNames({});
   };
 
   const handleDropOnWindow = async (e: React.DragEvent) => {
@@ -275,9 +282,9 @@ export const App: React.FC = () => {
                   elements={activeElements}
                   elementVisibility={elementVisibility}
                   onToggleElementVisibility={handleToggleElementVisibility}
+                  onToggleTimeframeVisibility={handleToggleTimeframeVisibility}
                   hoveredElementId={hoveredElementId}
                   onHoverElement={setHoveredElementId}
-                  onUpdateElementName={handleUpdateElementName}
                 />
               </Suspense>
             )}

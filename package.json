@@ -9,21 +9,21 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit && eslint . --fix --cache --cache-strategy content --max-warnings=0",
-    "format": "prettier --write --cache --log-level warn .",
+    "format": "prettier --write --cache --cache-strategy content --log-level warn .",
     "verify:rules": "node verify-script/main.mjs",
     "strip:comments": "node verify-script/general/remove-comments.mjs",
     "test": "vitest run",
-    "verify": "npm run typecheck && npm run verify:rules && npm run strip:comments && npm run lint && npm run format && npm run test && npm run build"
+    "verify": "npm run typecheck && npm run verify:rules && npm run strip:comments && npm run lint && npm run format && npm run test && npm run build",
+    "prepare": "husky"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
-      "tsc --noEmit",
-      "node verify-script/general/remove-comments.mjs",
-      "eslint . --fix --cache --cache-strategy content --max-warnings=0",
-      "prettier --write --cache --log-level warn ."
+      "eslint --fix --cache --cache-strategy content --max-warnings=0",
+      "prettier --write --cache --cache-strategy content",
+      "vitest related --run"
     ],
     "*.{json,md,css,scss}": [
-      "prettier --write --cache --log-level warn ."
+      "prettier --write --cache --cache-strategy content"
     ]
   },
   "dependencies": {
@@ -46,6 +46,8 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.14.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.2",
     "postcss": "^8.4.47",
     "prettier": "^3.10.1",
     "tailwindcss": "^3.4.14",

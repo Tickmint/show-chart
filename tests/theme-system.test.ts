@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   THEME_STORAGE_KEY,
   THEME_PALETTES,
@@ -13,6 +16,10 @@ import {
   getThemeChartOptions,
 } from '../src/utils/themeService.js';
 import type { ThemeMode } from '../src/types/theme.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const root = path.resolve(__dirname, '..');
 
 describe('Theme System & Color Conversion Architecture', () => {
   const mockStorage = new Map<string, string>();
@@ -301,6 +308,23 @@ describe('Theme System & Color Conversion Architecture', () => {
       const absPos = getPopoverClassesAndStyle(100);
       expect(absPos.style).toEqual({ right: '100px' });
       expect(absPos.className).toContain('top-12');
+    });
+
+    it('should strictly disallow renaming elements and remove pencil / edit handlers', () => {
+      const popoverFilePath = path.join(
+        root,
+        'src',
+        'components',
+        'Controls',
+        'LineItemsPopover.tsx',
+      );
+      const source = fs.readFileSync(popoverFilePath, 'utf8');
+
+      expect(source).not.toContain('Pencil');
+      expect(source).not.toContain('onUpdateElementName');
+      expect(source).not.toContain('handleStartEdit');
+      expect(source).not.toContain('handleSaveEdit');
+      expect(source).not.toContain('editingId');
     });
   });
 });
