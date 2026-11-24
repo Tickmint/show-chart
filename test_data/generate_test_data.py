@@ -560,7 +560,59 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
                     "fromTime": m5_candles[91]["time"],
                     "topPrice": round(m5_candles[92]["low"], decimals),
                     "bottomPrice": round(m5_candles[90]["high"], decimals),
-                    "candleCount": 42  # Spans until Leg 4 mitigates the gap at M5 132
+                    "candleCount": 5
+                },
+                # Pibonacci for POI Wave (Leg 3: HL2 -> HH3)
+                {
+                    "id": f"m5-{pair_slug}-pibo-leg3",
+                    "type": "pibo",
+                    "color": "#38bdf8",
+                    "lineColor": "#38bdf8",
+                    "zoneColor": "#ef4444",
+                    "element": "M5 Market Structure Pibo Leg 3 (0.618-0.8)",
+                    "displayName": "M5 Pibo Leg 3 (0.618 - 0.8)",
+                    "description": "M5 Fibonacci Retracement on POI leg HL2 -> HH3",
+                    "timeframe": "M5",
+                    "sourceTimeframe": "M5",
+                    "fromTime": m5_hl2["time"],
+                    "toTime": m5_hh3["time"],
+                    "fromPrice": round(m5_hl2["low"], decimals),
+                    "toPrice": round(m5_hh3["high"], decimals),
+                    "startLevel": 0,
+                    "endLevel": 1,
+                    "zones": [
+                        {
+                            "fromLevel": 0.618,
+                            "toLevel": 0.8,
+                            "color": "#ef4444"
+                        }
+                    ]
+                },
+                # Pibonacci for POI Wave (Leg 6: LH5 -> LL6)
+                {
+                    "id": f"m5-{pair_slug}-pibo-leg6",
+                    "type": "pibo",
+                    "color": "#fb7185",
+                    "lineColor": "#fb7185",
+                    "zoneColor": "#ef4444",
+                    "element": "M5 Market Structure Pibo Leg 6 (0.618-0.8)",
+                    "displayName": "M5 Pibo Leg 6 (0.618 - 0.8)",
+                    "description": "M5 Fibonacci Retracement on POI leg LH5 -> LL6",
+                    "timeframe": "M5",
+                    "sourceTimeframe": "M5",
+                    "fromTime": m5_lh5["time"],
+                    "toTime": m5_ll6["time"],
+                    "fromPrice": round(m5_lh5["high"], decimals),
+                    "toPrice": round(m5_ll6["low"], decimals),
+                    "startLevel": 0,
+                    "endLevel": 1,
+                    "zones": [
+                        {
+                            "fromLevel": 0.618,
+                            "toLevel": 0.8,
+                            "color": "#ef4444"
+                        }
+                    ]
                 }
             ]
         },
@@ -753,7 +805,59 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
                     "fromTime": m2_candles[496]["time"],
                     "topPrice": round(m2_candles[497]["low"], decimals),
                     "bottomPrice": round(m2_candles[495]["high"], decimals),
-                    "candleCount": 26  # Spans until Leg 4 mitigates the gap at M2 522
+                    "candleCount": 5
+                },
+                # Pibonacci for POI Wave (Leg 3: HL2 -> HH3)
+                {
+                    "id": f"m2-{pair_slug}-pibo-leg3",
+                    "type": "pibo",
+                    "color": "#38bdf8",
+                    "lineColor": "#38bdf8",
+                    "zoneColor": "#ef4444",
+                    "element": "M2 Market Structure Pibo Leg 3 (0.618-0.8)",
+                    "displayName": "M2 Pibo Leg 3 (0.618 - 0.8)",
+                    "description": "M2 Fibonacci Retracement on POI leg HL2 -> HH3",
+                    "timeframe": "M2",
+                    "sourceTimeframe": "M2",
+                    "fromTime": m2_hl2["time"],
+                    "toTime": m2_hh3["time"],
+                    "fromPrice": round(m2_hl2["low"], decimals),
+                    "toPrice": round(m2_hh3["high"], decimals),
+                    "startLevel": 0,
+                    "endLevel": 1,
+                    "zones": [
+                        {
+                            "fromLevel": 0.618,
+                            "toLevel": 0.8,
+                            "color": "#ef4444"
+                        }
+                    ]
+                },
+                # Pibonacci for POI Wave (Leg 6: LH5 -> LL6)
+                {
+                    "id": f"m2-{pair_slug}-pibo-leg6",
+                    "type": "pibo",
+                    "color": "#fb7185",
+                    "lineColor": "#fb7185",
+                    "zoneColor": "#ef4444",
+                    "element": "M2 Market Structure Pibo Leg 6 (0.618-0.8)",
+                    "displayName": "M2 Pibo Leg 6 (0.618 - 0.8)",
+                    "description": "M2 Fibonacci Retracement on POI leg LH5 -> LL6",
+                    "timeframe": "M2",
+                    "sourceTimeframe": "M2",
+                    "fromTime": m2_lh5["time"],
+                    "toTime": m2_ll6["time"],
+                    "fromPrice": round(m2_lh5["high"], decimals),
+                    "toPrice": round(m2_ll6["low"], decimals),
+                    "startLevel": 0,
+                    "endLevel": 1,
+                    "zones": [
+                        {
+                            "fromLevel": 0.618,
+                            "toLevel": 0.8,
+                            "color": "#ef4444"
+                        }
+                    ]
                 }
             ]
         },
@@ -932,7 +1036,59 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
                     "fromTime": m1_candles[1131]["time"],
                     "topPrice": round(m1_candles[1132]["low"], decimals),
                     "bottomPrice": round(m1_candles[1130]["high"], decimals),
-                    "candleCount": 10  # Spans until Leg 4 mitigates the gap at M1 1140
+                    "candleCount": 4
+                },
+                # Pibonacci for POI Wave (Leg 3: HL2 -> HH3)
+                {
+                    "id": f"m1-{pair_slug}-pibo-leg3",
+                    "type": "pibo",
+                    "color": "#38bdf8",
+                    "lineColor": "#38bdf8",
+                    "zoneColor": "#ef4444",
+                    "element": "M1 Market Structure Pibo Leg 3 (0.618-0.8)",
+                    "displayName": "M1 Pibo Leg 3 (0.618 - 0.8)",
+                    "description": "M1 Fibonacci Retracement on POI leg HL2 -> HH3",
+                    "timeframe": "M1",
+                    "sourceTimeframe": "M1",
+                    "fromTime": m1_hl2["time"],
+                    "toTime": m1_hh3["time"],
+                    "fromPrice": round(m1_hl2["low"], decimals),
+                    "toPrice": round(m1_hh3["high"], decimals),
+                    "startLevel": 0,
+                    "endLevel": 1,
+                    "zones": [
+                        {
+                            "fromLevel": 0.618,
+                            "toLevel": 0.8,
+                            "color": "#ef4444"
+                        }
+                    ]
+                },
+                # Pibonacci for POI Wave (Leg 6: LH5 -> LL6)
+                {
+                    "id": f"m1-{pair_slug}-pibo-leg6",
+                    "type": "pibo",
+                    "color": "#fb7185",
+                    "lineColor": "#fb7185",
+                    "zoneColor": "#ef4444",
+                    "element": "M1 Market Structure Pibo Leg 6 (0.618-0.8)",
+                    "displayName": "M1 Pibo Leg 6 (0.618 - 0.8)",
+                    "description": "M1 Fibonacci Retracement on POI leg LH5 -> LL6",
+                    "timeframe": "M1",
+                    "sourceTimeframe": "M1",
+                    "fromTime": m1_lh5["time"],
+                    "toTime": m1_ll6["time"],
+                    "fromPrice": round(m1_lh5["high"], decimals),
+                    "toPrice": round(m1_ll6["low"], decimals),
+                    "startLevel": 0,
+                    "endLevel": 1,
+                    "zones": [
+                        {
+                            "fromLevel": 0.618,
+                            "toLevel": 0.8,
+                            "color": "#ef4444"
+                        }
+                    ]
                 }
             ]
         }

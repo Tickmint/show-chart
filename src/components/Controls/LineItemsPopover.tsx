@@ -66,13 +66,20 @@ export const LineItemsPopover: React.FC<LineItemsPopoverProps> = ({
     });
   }, [groupedElements]);
 
+  const isElementVisible = (el: ChartElement) => {
+    if (elementVisibility[el.id] !== undefined) {
+      return elementVisibility[el.id];
+    }
+    return el.drawings.some((d) => d.visible !== false);
+  };
+
   const handleToggleTimeframe = (tf: string, targetVisible: boolean) => {
     if (onToggleTimeframeVisibility) {
       onToggleTimeframeVisibility(tf, targetVisible);
     } else {
       const tfElements = groupedElements[tf] || [];
       for (const el of tfElements) {
-        const isCurrentVisible = elementVisibility[el.id] !== false;
+        const isCurrentVisible = isElementVisible(el);
         if (isCurrentVisible !== targetVisible) {
           onToggleElementVisibility(el.id);
         }
@@ -113,12 +120,8 @@ export const LineItemsPopover: React.FC<LineItemsPopoverProps> = ({
       <div className="overflow-y-auto p-2 space-y-2.5 max-h-[60vh]">
         {sortedTimeframes.map((tf) => {
           const tfElements = groupedElements[tf] || [];
-          const anyVisible = tfElements.some(
-            (el) => elementVisibility[el.id] !== false,
-          );
-          const visibleCount = tfElements.filter(
-            (el) => elementVisibility[el.id] !== false,
-          ).length;
+          const anyVisible = tfElements.some(isElementVisible);
+          const visibleCount = tfElements.filter(isElementVisible).length;
 
           return (
             <div
@@ -160,7 +163,7 @@ export const LineItemsPopover: React.FC<LineItemsPopoverProps> = ({
 
               <div className="space-y-1">
                 {tfElements.map((el) => {
-                  const isVisible = elementVisibility[el.id] !== false;
+                  const isVisible = isElementVisible(el);
                   const isHovered = hoveredElementId === el.id;
                   const displayName = el.displayName || el.name;
 

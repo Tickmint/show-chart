@@ -315,7 +315,8 @@ describe('POI Block Drawing Feature (Key Level, Imbalance, POI - Infinite, Finit
       expect(kl.text).toBe('D - KL');
       expect(kl.description).toBe('D - KL');
       expect(kl.showBorder).toBe(false);
-      expect(kl.centerLineStyle).toBe('dashed');
+      expect(kl.centerLineStyle).toBe('none');
+      expect(kl.showCenterLine).toBe(false);
 
       const poi = normalized[1] as PoiDrawing;
       expect(poi.type).toBe('poi');
@@ -517,6 +518,66 @@ describe('POI Block Drawing Feature (Key Level, Imbalance, POI - Infinite, Finit
 
       expect(mockCtx.fillRect).toHaveBeenCalled();
       expect(mockCtx.strokeRect).toHaveBeenCalled();
+    });
+
+    it('should NOT draw dashed center line by default', () => {
+      vi.clearAllMocks();
+      const poiDrawing: PoiDrawing = {
+        id: 'poi-no-centerline',
+        type: 'poi',
+        color: '#0d9488',
+        topPrice: 1.092,
+        bottomPrice: 1.089,
+        text: 'M5 - POI',
+        fromTime: 0,
+        showCenterLine: false,
+        sourceTimeframe: 'M5',
+      };
+
+      renderPoi(
+        mockCtx,
+        poiDrawing,
+        m5Candles,
+        mockTimeScale,
+        mockSeries,
+        800,
+        false,
+        'M5',
+      );
+
+      expect(mockCtx.fillRect).toHaveBeenCalled();
+      expect(mockCtx.stroke).not.toHaveBeenCalled();
+    });
+
+    it('should draw center line only when showCenterLine is true', () => {
+      vi.clearAllMocks();
+      const poiDrawing: PoiDrawing = {
+        id: 'poi-with-centerline',
+        type: 'poi',
+        color: '#0d9488',
+        topPrice: 1.092,
+        bottomPrice: 1.089,
+        text: 'M5 - POI',
+        fromTime: 0,
+        showCenterLine: true,
+        centerLineStyle: 'dashed',
+        sourceTimeframe: 'M5',
+      };
+
+      renderPoi(
+        mockCtx,
+        poiDrawing,
+        m5Candles,
+        mockTimeScale,
+        mockSeries,
+        800,
+        false,
+        'M5',
+      );
+
+      expect(mockCtx.fillRect).toHaveBeenCalled();
+      expect(mockCtx.stroke).toHaveBeenCalled();
+      expect(mockCtx.setLineDash).toHaveBeenCalledWith([4, 4]);
     });
   });
 

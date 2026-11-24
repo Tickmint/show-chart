@@ -20,12 +20,14 @@ import {
   type Drawing,
   isLineDrawing,
   isPoiDrawing,
+  isPiboDrawing,
 } from '../../types/chart.js';
 import { type ThemeMode } from '../../types/theme.js';
 import {
   renderLine,
   renderZone,
   renderPoi,
+  renderPibo,
 } from '../../utils/canvasDrawing.js';
 import { canInheritTimeframe } from '../../utils/timeframeService.js';
 import {
@@ -185,14 +187,22 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
       for (const drawing of currentDrawings) {
         const elId = drawing.group || drawing.element || 'Elements';
 
-        if (elVis[elId] === false) continue;
-        if (drawing.visible === false) continue;
+        const isElementVisible =
+          elVis[elId] !== undefined ? elVis[elId] : drawing.visible !== false;
+        if (!isElementVisible) continue;
 
         const isCommon = !drawing.sourceTimeframe;
         if (isCommon && !scopes.common) continue;
         if (!isCommon && !scopes.timeframe) continue;
 
-        if (
+        if (isPiboDrawing(drawing)) {
+          if (
+            drawing.sourceTimeframe &&
+            drawing.sourceTimeframe !== currentTf
+          ) {
+            continue;
+          }
+        } else if (
           drawing.sourceTimeframe &&
           !canInheritTimeframe(drawing.sourceTimeframe, currentTf, tfUnits)
         ) {
@@ -203,6 +213,8 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
           !isCommon &&
           drawing.type !== 'poi' &&
           drawing.type !== 'keyLevel' &&
+          drawing.type !== 'pibo' &&
+          drawing.type !== 'fibonacci' &&
           drawing.sourceTimeframe !== currentTf &&
           drawing.stretch === false
         ) {
@@ -226,6 +238,19 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
             );
           } else if (isPoiDrawing(drawing)) {
             renderPoi(
+              ctx,
+              drawing,
+              currentCandles,
+              timeScale,
+              series,
+              paneWidth,
+              isHovered,
+              currentTf,
+              tfUnits,
+              currentTheme,
+            );
+          } else if (isPiboDrawing(drawing)) {
+            renderPibo(
               ctx,
               drawing,
               currentCandles,

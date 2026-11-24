@@ -1,4 +1,11 @@
-import { type Candle, type PriceOption, type Drawing } from '../types/chart.js';
+import {
+  type Candle,
+  type PriceOption,
+  type Drawing,
+  type PiboDrawing,
+  type PiboLevelConfig,
+  type PiboZone,
+} from '../types/chart.js';
 import { normalizeTimestamp } from './fileParser.js';
 
 export const DEFAULT_TIMEFRAME_UNITS: Record<string, number> = {
@@ -606,3 +613,245 @@ export function resolvePoiBounds({
 }
 
 export const resolveKeyLevelBounds = resolvePoiBounds;
+
+export const STANDARD_FIBONACCI_RATIOS: readonly number[] = [
+  0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0, 1.272, 1.414, 1.618, 2.0, 2.618,
+  3.618, 4.236,
+];
+
+export function canDisplayPiboOnTimeframe(
+  drawing: PiboDrawing,
+  currentTimeframe: string,
+  customUnits?: Record<string, number>,
+): boolean {
+  if (drawing.exactTimeframeOnly === false) {
+    return canInheritTimeframe(
+      drawing.sourceTimeframe,
+      currentTimeframe,
+      customUnits,
+    );
+  }
+  if (!drawing.sourceTimeframe) return true;
+  return drawing.sourceTimeframe === currentTimeframe;
+}
+
+export function resolvePiboLevels(
+  levels?: (number | PiboLevelConfig)[],
+  startLevel?: number,
+  endLevel?: number,
+  zones?: PiboZone[],
+  showAllLevels?: boolean,
+): PiboLevelConfig[] {
+  const minL = Math.min(startLevel ?? 0, endLevel ?? 1);
+  const maxL = Math.max(startLevel ?? 0, endLevel ?? 1);
+
+  const set = new Set<number>();
+  set.add(minL);
+  set.add(maxL);
+
+  if (levels && levels.length > 0) {
+    for (const item of levels) {
+      const l = typeof item === 'number' ? item : item.level;
+      set.add(l);
+    }
+  }
+
+  if (zones && zones.length > 0) {
+    for (const z of zones) {
+      set.add(z.fromLevel);
+      set.add(z.toLevel);
+    }
+  }
+
+  if (showAllLevels || (!zones?.length && !levels?.length)) {
+    for (const r of STANDARD_FIBONACCI_RATIOS) {
+      if (r >= minL - 1e-5 && r <= maxL + 1e-5) {
+        set.add(r);
+      }
+    }
+  }
+
+  const levelConfigsMap = new Map<number, PiboLevelConfig>();
+  if (levels && levels.length > 0) {
+    for (const item of levels) {
+      if (typeof item === 'object') {
+        levelConfigsMap.set(item.level, item);
+      }
+    }
+  }
+
+  return Array.from(set)
+    .sort((a, b) => a - b)
+    .map((lvl) => {
+      const custom = levelConfigsMap.get(lvl);
+      return custom ? custom : { level: lvl };
+    });
+}
+
+export interface ResolvePiboBoundsParams {
+  fromTime?: number | string;
+  toTime?: number | string;
+  fromCandleIndex?: number;
+  toCandleIndex?: number;
+  fromPrice?: PriceOption;
+  toPrice?: PriceOption;
+  startLevel?: number;
+  endLevel?: number;
+  levels?: (number | PiboLevelConfig)[];
+  zones?: PiboZone[];
+  sourceTimeframe?: string;
+  targetTimeframe: string;
+  targetCandles: Candle[];
+  customUnits?: Record<string, number>;
+}
+
+export interface ResolvedPiboLevel {
+  level: number;
+  price: number;
+  color?: string;
+  lineStyle?: 'solid' | 'dashed' | 'dotted';
+  lineWidth?: number;
+  label?: string;
+}
+
+export interface ResolvedPiboZone {
+  fromLevel: number;
+  toLevel: number;
+  fromPrice: number;
+  toPrice: number;
+  topPrice: number;
+  bottomPrice: number;
+  color: string;
+  fillColor?: string;
+  opacity?: number;
+  label?: string;
+  showLabel?: boolean;
+}
+
+export interface PiboBoundsResult {
+  startTime: number;
+  endTime: number;
+  startPrice: number;
+  endPrice: number;
+  priceDiff: number;
+  levels: ResolvedPiboLevel[];
+  zones: ResolvedPiboZone[];
+  startCandle: Candle;
+  endCandle: Candle;
+}
+
+function resolvePriceValue(
+  priceOption: PriceOption | undefined,
+  candle: Candle | null,
+  fallbackPrice: number = 0,
+): number {
+  if (typeof priceOption === 'number') {
+    return priceOption;
+  }
+  if (!candle) return fallbackPrice;
+  if (priceOption === 'high') return candle.high;
+  if (priceOption === 'low') return candle.low;
+  if (priceOption === 'open') return candle.open;
+  if (priceOption === 'close') return candle.close;
+  return candle.close;
+}
+
+export function resolvePiboBounds({
+  fromTime,
+  toTime,
+  fromCandleIndex,
+  toCandleIndex,
+  fromPrice,
+  toPrice,
+  startLevel,
+  endLevel,
+  levels,
+  zones,
+  targetCandles,
+}: ResolvePiboBoundsParams): PiboBoundsResult | null {
+  if (targetCandles.length === 0) return null;
+
+  let startCandle: Candle | null = null;
+  let startTime = 0;
+
+  if (fromCandleIndex !== undefined && targetCandles[fromCandleIndex]) {
+    startCandle = targetCandles[fromCandleIndex]!;
+    startTime = startCandle.time;
+  } else if (fromTime !== undefined) {
+    const timeNum = normalizeTimestamp(fromTime);
+    startCandle = findClosestCandle(timeNum, targetCandles);
+    startTime = startCandle ? startCandle.time : timeNum;
+  } else {
+    startCandle = targetCandles[0] || null;
+    startTime = startCandle ? startCandle.time : 0;
+  }
+
+  if (!startCandle) return null;
+
+  let endCandle: Candle | null = null;
+  let endTime = 0;
+
+  if (toCandleIndex !== undefined && targetCandles[toCandleIndex]) {
+    endCandle = targetCandles[toCandleIndex]!;
+    endTime = endCandle.time;
+  } else if (toTime !== undefined) {
+    const timeNum = normalizeTimestamp(toTime);
+    endCandle = findClosestCandle(timeNum, targetCandles);
+    endTime = endCandle ? endCandle.time : timeNum;
+  } else {
+    endCandle = targetCandles[targetCandles.length - 1] || null;
+    endTime = endCandle ? endCandle.time : 0;
+  }
+
+  if (!endCandle) return null;
+
+  const startPriceVal = resolvePriceValue(
+    fromPrice,
+    startCandle,
+    startCandle.close,
+  );
+  const endPriceVal = resolvePriceValue(toPrice, endCandle, endCandle.close);
+  const priceDiff = endPriceVal - startPriceVal;
+
+  const piboLevels = resolvePiboLevels(levels, startLevel, endLevel, zones);
+  const resolvedLevels: ResolvedPiboLevel[] = piboLevels.map((lvl) => ({
+    level: lvl.level,
+    price: Number((startPriceVal + lvl.level * priceDiff).toFixed(6)),
+    color: lvl.color,
+    lineStyle: lvl.lineStyle,
+    lineWidth: lvl.lineWidth,
+    label: lvl.label,
+  }));
+
+  const resolvedZones: ResolvedPiboZone[] = (zones || []).map((zone) => {
+    const fromP = Number(
+      (startPriceVal + zone.fromLevel * priceDiff).toFixed(6),
+    );
+    const toP = Number((startPriceVal + zone.toLevel * priceDiff).toFixed(6));
+    return {
+      fromLevel: zone.fromLevel,
+      toLevel: zone.toLevel,
+      fromPrice: fromP,
+      toPrice: toP,
+      topPrice: Math.max(fromP, toP),
+      bottomPrice: Math.min(fromP, toP),
+      color: zone.color || '#ef4444',
+      fillColor: zone.fillColor,
+      opacity: zone.opacity,
+      label: zone.label,
+      showLabel: Boolean(zone.showLabel),
+    };
+  });
+
+  return {
+    startTime,
+    endTime,
+    startPrice: startPriceVal,
+    endPrice: endPriceVal,
+    priceDiff,
+    levels: resolvedLevels,
+    zones: resolvedZones,
+    startCandle,
+    endCandle,
+  };
+}

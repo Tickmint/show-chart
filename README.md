@@ -34,7 +34,13 @@ It supports importing candlestick data and technical lines via **plain JSON** (`
    - Popover hiển thị danh sách dạng từng dòng gọn gàng, có huy hiệu khung thời gian nguồn (`H4`, `H1`), không hiển thị số lượng line con rườm rà.
    - Rê chuột vào Element nào thì toàn bộ cấu trúc của Element đó trên biểu đồ sẽ cùng sáng lên.
 
-6. **Tập tin kiểm thử tập trung (`test_data/` & `tests/`)**:
+6. **Pibonacci (Fibonacci Retracement & Extension)**:
+   - Hiển thị chính xác tại **đúng khung thời gian** đã đặt Pibo (`exactTimeframeOnly: true`), không kế thừa sang các khung thời gian khác.
+   - Hỗ trợ đầy đủ: điểm bắt đầu (`fromTime`/`fromCandleIndex`), điểm kết thúc (`toTime`/`toCandleIndex`), giá bắt đầu (`fromPrice`), giá kết thúc (`toPrice`).
+   - Cấu hình các điểm đầu và cuối: ví dụ `startLevel: 0`, `endLevel: 1` hoặc `1.618`, hoặc danh sách `levels` tùy chỉnh.
+   - Tô màu các vùng cụ thể: ví dụ `0.618 -> 0.8` tô màu đỏ (`zones: [{ fromLevel: 0.618, toLevel: 0.8, color: "red" }]`).
+
+7. **Tập tin kiểm thử tập trung (`test_data/` & `tests/`)**:
    - Thư mục `test_data/` chứa script Python `generate_test_data.py` sinh dữ liệu chuẩn hóa Market Structure.
    - Thư mục `tests/` sử dụng Vitest kiểm tra tự động tỷ lệ chuyển đổi, quy tắc thừa kế 1 chiều và thuật toán neo bám nến con.
 
@@ -103,6 +109,23 @@ It supports importing candlestick data and technical lines via **plain JSON** (`
           "toTime": 1705000000,
           "sourceTimeframe": "H4",
           "stretch": true
+        },
+        {
+          "id": "h4-pibo-1",
+          "type": "pibo",
+          "fromTime": 1704067200, // Điểm bắt đầu
+          "toTime": 1704600000,   // Điểm kết thúc
+          "fromPrice": 1.071,     // Giá bắt đầu
+          "toPrice": 1.078,       // Giá kết thúc
+          "startLevel": 0,        // Mức bắt đầu
+          "endLevel": 1.618,      // Mức kết thúc (0 -> 1 hoặc 1.618)
+          "zones": [
+            {
+              "fromLevel": 0.618, // Vùng 0.618 -> 0.8
+              "toLevel": 0.8,
+              "color": "red"      // Tô màu đỏ
+            }
+          ]
         }
       ]
     },

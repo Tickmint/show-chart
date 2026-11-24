@@ -6,6 +6,7 @@ import {
   type Drawing,
   type TimeframeData,
   type ChartElement,
+  isPiboDrawing,
 } from './types/chart.js';
 import { type ThemeMode } from './types/theme.js';
 import {
@@ -116,6 +117,12 @@ export const App: React.FC = () => {
 
   const currentActiveDrawings = useMemo(() => {
     return allDrawings.filter((d) => {
+      if (isPiboDrawing(d)) {
+        if (d.sourceTimeframe && d.sourceTimeframe !== currentTimeframe) {
+          return false;
+        }
+        return true;
+      }
       const srcTf = d.sourceTimeframe;
       if (srcTf) {
         return canInheritTimeframe(
@@ -159,14 +166,24 @@ export const App: React.FC = () => {
   }, [currentActiveDrawings]);
 
   const visibleElementsCount = useMemo(() => {
-    return activeElements.filter((el) => elementVisibility[el.id] !== false)
-      .length;
+    return activeElements.filter((el) => {
+      if (elementVisibility[el.id] !== undefined) {
+        return elementVisibility[el.id];
+      }
+      return el.drawings.some((d) => d.visible !== false);
+    }).length;
   }, [activeElements, elementVisibility]);
 
   const handleToggleElementVisibility = (id: string) => {
+    const el = activeElements.find((e) => e.id === id);
+    const isCurrentlyVisible =
+      elementVisibility[id] !== undefined
+        ? elementVisibility[id]
+        : (el?.drawings.some((d) => d.visible !== false) ?? true);
+
     setElementVisibility((prev) => ({
       ...prev,
-      [id]: prev[id] === undefined ? false : !prev[id],
+      [id]: !isCurrentlyVisible,
     }));
   };
 

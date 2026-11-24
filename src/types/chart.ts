@@ -13,6 +13,8 @@ export interface CandlePoiConfig {
   borderWidth?: number;
   borderStyle?: 'solid' | 'dashed';
   showBorder?: boolean;
+  showCenterLine?: boolean;
+  centerLineStyle?: 'dashed' | 'solid' | 'none';
   centerLineColor?: string;
   textColor?: string;
   subType?: string;
@@ -34,8 +36,9 @@ export interface Candle {
   keyLevel?: CandlePoiConfig;
 }
 
-export type DrawingType = 'line' | 'box' | 'zone' | 'poi' | 'keyLevel';
-export type PriceOption = 'high' | 'low' | number;
+export type DrawingType =
+  'line' | 'box' | 'zone' | 'poi' | 'keyLevel' | 'pibo' | 'fibonacci';
+export type PriceOption = 'high' | 'low' | 'open' | 'close' | number;
 export type LineDirection = 'up' | 'down';
 
 export interface BaseDrawing {
@@ -93,6 +96,7 @@ export interface PoiDrawing extends BaseDrawing {
   borderWidth?: number;
   borderStyle?: 'solid' | 'dashed';
   showBorder?: boolean;
+  showCenterLine?: boolean;
   centerLineStyle?: 'dashed' | 'solid' | 'none';
   centerLineColor?: string;
   centerLineWidth?: number;
@@ -107,7 +111,51 @@ export interface PoiDrawing extends BaseDrawing {
 
 export type KeyLevelDrawing = PoiDrawing;
 
-export type Drawing = LineDrawing | ZoneDrawing | PoiDrawing;
+export interface PiboLevelConfig {
+  level: number;
+  color?: string;
+  lineStyle?: 'solid' | 'dashed' | 'dotted';
+  lineWidth?: number;
+  label?: string;
+}
+
+export interface PiboZone {
+  fromLevel: number;
+  toLevel: number;
+  color?: string;
+  fillColor?: string;
+  opacity?: number;
+  label?: string;
+  showLabel?: boolean;
+}
+
+export type FibonacciZone = PiboZone;
+
+export interface PiboDrawing extends BaseDrawing {
+  type: 'pibo' | 'fibonacci';
+  lineColor?: string;
+  barColor?: string;
+  zoneColor?: string;
+  fromPrice?: PriceOption;
+  toPrice?: PriceOption;
+  startLevel?: number;
+  endLevel?: number;
+  levels?: (number | PiboLevelConfig)[];
+  zones?: PiboZone[];
+  showTrendLine?: boolean;
+  trendLineColor?: string;
+  trendLineStyle?: 'solid' | 'dashed';
+  lineWidth?: number;
+  extendRight?: boolean;
+  extendLeft?: boolean;
+  showLabels?: boolean;
+  labelPosition?: 'left' | 'right' | 'center';
+  exactTimeframeOnly?: boolean;
+}
+
+export type FibonacciDrawing = PiboDrawing;
+
+export type Drawing = LineDrawing | ZoneDrawing | PoiDrawing | PiboDrawing;
 
 export function isLineDrawing(drawing: Drawing): drawing is LineDrawing {
   return drawing.type === 'line';
@@ -126,6 +174,12 @@ export function isKeyLevelDrawing(
 ): drawing is KeyLevelDrawing {
   return isPoiDrawing(drawing);
 }
+
+export function isPiboDrawing(drawing: Drawing): drawing is PiboDrawing {
+  return drawing.type === 'pibo' || drawing.type === 'fibonacci';
+}
+
+export const isFibonacciDrawing = isPiboDrawing;
 
 export interface ChartElement {
   id: string;

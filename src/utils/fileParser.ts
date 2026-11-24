@@ -9,6 +9,9 @@ import {
   type TimeframeConversion,
   type CandlePoiConfig,
   type PoiDrawing,
+  type PiboDrawing,
+  type PiboLevelConfig,
+  type PiboZone,
 } from '../types/chart.js';
 import { getTimeframeConversionRatio } from './timeframeService.js';
 
@@ -195,15 +198,27 @@ export function normalizeDrawings(
   return (rawDrawings as Array<Record<string, unknown>>).map((d, index) => {
     const rawType =
       typeof d.type === 'string' ? d.type.toLowerCase().trim() : '';
+
+    const isPibo =
+      rawType === 'pibo' ||
+      rawType === 'fibonacci' ||
+      rawType === 'fib' ||
+      rawType === 'pibonacci' ||
+      Boolean(d.isPibo) ||
+      Boolean(d.isFibonacci) ||
+      Boolean(d.pibo);
+
     const isKeyLevel =
-      rawType === 'keylevel' ||
-      rawType === 'key_level' ||
-      rawType === 'key-level' ||
-      rawType === 'poi' ||
-      Boolean(d.isKeyLevel) ||
-      Boolean(d.keyLevel);
+      !isPibo &&
+      (rawType === 'keylevel' ||
+        rawType === 'key_level' ||
+        rawType === 'key-level' ||
+        rawType === 'poi' ||
+        Boolean(d.isKeyLevel) ||
+        Boolean(d.keyLevel));
 
     const isZoneOrBox =
+      !isPibo &&
       !isKeyLevel &&
       (rawType === 'box' ||
         rawType === 'zone' ||
@@ -241,6 +256,248 @@ export function normalizeDrawings(
           ? d.elementId.trim()
           : group ||
             (sourceTimeframe ? `Timeframe ${sourceTimeframe}` : 'Common'));
+
+    if (isPibo) {
+      const id =
+        typeof d.id === 'string'
+          ? d.id
+          : `pibo-${sourceTimeframe || 'common'}-${index + 1}-${Math.random().toString(36).slice(2, 7)}`;
+
+      const fromTime =
+        d.fromTime !== undefined
+          ? normalizeTimestamp(d.fromTime as number | string)
+          : d.startTime !== undefined
+            ? normalizeTimestamp(d.startTime as number | string)
+            : d.time1 !== undefined
+              ? normalizeTimestamp(d.time1 as number | string)
+              : undefined;
+
+      const toTime =
+        d.toTime !== undefined
+          ? normalizeTimestamp(d.toTime as number | string)
+          : d.endTime !== undefined
+            ? normalizeTimestamp(d.endTime as number | string)
+            : d.time2 !== undefined
+              ? normalizeTimestamp(d.time2 as number | string)
+              : undefined;
+
+      const fromCandleIndex =
+        typeof d.fromCandleIndex === 'number'
+          ? d.fromCandleIndex
+          : typeof d.startCandleIndex === 'number'
+            ? d.startCandleIndex
+            : undefined;
+
+      const toCandleIndex =
+        typeof d.toCandleIndex === 'number'
+          ? d.toCandleIndex
+          : typeof d.endCandleIndex === 'number'
+            ? d.endCandleIndex
+            : undefined;
+
+      const normalizePriceOpt = (val: unknown): PriceOption | undefined => {
+        if (typeof val === 'number') return val;
+        if (typeof val === 'string') {
+          const lower = val.trim().toLowerCase();
+          if (
+            lower === 'high' ||
+            lower === 'low' ||
+            lower === 'open' ||
+            lower === 'close'
+          ) {
+            return lower;
+          }
+          const num = Number(val);
+          if (!isNaN(num)) return num;
+        }
+        return undefined;
+      };
+
+      const fromPrice = normalizePriceOpt(
+        d.fromPrice ?? d.startPrice ?? d.price1 ?? d.priceFrom,
+      );
+      const toPrice = normalizePriceOpt(
+        d.toPrice ?? d.endPrice ?? d.price2 ?? d.priceTo,
+      );
+
+      const startLevel =
+        typeof d.startLevel === 'number'
+          ? d.startLevel
+          : typeof d.start_level === 'number'
+            ? d.start_level
+            : typeof d.minLevel === 'number'
+              ? d.minLevel
+              : undefined;
+
+      const endLevel =
+        typeof d.endLevel === 'number'
+          ? d.endLevel
+          : typeof d.end_level === 'number'
+            ? d.end_level
+            : typeof d.maxLevel === 'number'
+              ? d.maxLevel
+              : undefined;
+
+      let levels: (number | PiboLevelConfig)[] | undefined;
+      if (Array.isArray(d.levels)) {
+        levels = d.levels.map((lvl) => {
+          if (typeof lvl === 'number') return lvl;
+          if (lvl && typeof lvl === 'object') {
+            const lObj = lvl as Record<string, unknown>;
+            return {
+              level: Number(lObj.level ?? 0),
+              color: typeof lObj.color === 'string' ? lObj.color : undefined,
+              lineStyle:
+                lObj.lineStyle === 'dashed' || lObj.lineStyle === 'dotted'
+                  ? lObj.lineStyle
+                  : 'solid',
+              lineWidth:
+                typeof lObj.lineWidth === 'number' ? lObj.lineWidth : undefined,
+              label: typeof lObj.label === 'string' ? lObj.label : undefined,
+            };
+          }
+          return 0;
+        });
+      }
+
+      let zones: PiboZone[] | undefined;
+      const zoneColor =
+        typeof d.zoneColor === 'string' && d.zoneColor.trim() !== ''
+          ? d.zoneColor.trim()
+          : typeof d.highlightColor === 'string' &&
+              d.highlightColor.trim() !== ''
+            ? d.highlightColor.trim()
+            : typeof d.fillColor === 'string' && d.fillColor.trim() !== ''
+              ? d.fillColor.trim()
+              : undefined;
+
+      const lineColor =
+        typeof d.lineColor === 'string' && d.lineColor.trim() !== ''
+          ? d.lineColor.trim()
+          : typeof d.barColor === 'string' && d.barColor.trim() !== ''
+            ? d.barColor.trim()
+            : typeof d.color === 'string' && d.color.trim() !== ''
+              ? d.color.trim()
+              : '#3b82f6';
+
+      const rawZones = d.zones ?? d.coloredZones ?? d.highlightZones ?? d.bands;
+      if (Array.isArray(rawZones)) {
+        zones = rawZones
+          .map((z) => {
+            if (!z || typeof z !== 'object') return null;
+            const zObj = z as Record<string, unknown>;
+            const fromL = Number(
+              zObj.fromLevel ??
+                zObj.from ??
+                zObj.start ??
+                zObj.level1 ??
+                zObj.from_level ??
+                0,
+            );
+            const toL = Number(
+              zObj.toLevel ??
+                zObj.to ??
+                zObj.end ??
+                zObj.level2 ??
+                zObj.to_level ??
+                1,
+            );
+            const color =
+              typeof zObj.color === 'string' && zObj.color.trim() !== ''
+                ? zObj.color.trim()
+                : typeof zObj.fillColor === 'string' &&
+                    zObj.fillColor.trim() !== ''
+                  ? zObj.fillColor.trim()
+                  : typeof zObj.fill_color === 'string' &&
+                      zObj.fill_color.trim() !== ''
+                    ? zObj.fill_color.trim()
+                    : zoneColor || '#ef4444';
+            const opacity =
+              typeof zObj.opacity === 'number' ? zObj.opacity : undefined;
+            const label =
+              typeof zObj.label === 'string' ? zObj.label.trim() : undefined;
+            const showLabel = Boolean(zObj.showLabel);
+            return {
+              fromLevel: fromL,
+              toLevel: toL,
+              color,
+              fillColor:
+                typeof zObj.fillColor === 'string' ? zObj.fillColor : undefined,
+              opacity,
+              label,
+              showLabel,
+            };
+          })
+          .filter(Boolean) as PiboZone[];
+      } else if (zoneColor) {
+        zones = [
+          {
+            fromLevel:
+              typeof d.zoneFromLevel === 'number'
+                ? d.zoneFromLevel
+                : typeof d.zoneStart === 'number'
+                  ? d.zoneStart
+                  : 0.618,
+            toLevel:
+              typeof d.zoneToLevel === 'number'
+                ? d.zoneToLevel
+                : typeof d.zoneEnd === 'number'
+                  ? d.zoneEnd
+                  : 0.8,
+            color: zoneColor,
+            showLabel: false,
+          },
+        ];
+      }
+
+      const exactTimeframeOnly =
+        d.exactTimeframeOnly !== undefined
+          ? Boolean(d.exactTimeframeOnly)
+          : true;
+
+      const piboItem: PiboDrawing = {
+        id,
+        type: rawType === 'fibonacci' ? 'fibonacci' : 'pibo',
+        color: lineColor,
+        lineColor,
+        barColor: lineColor,
+        zoneColor: zoneColor || (zones && zones[0]?.color) || '#ef4444',
+        element: group || elementName,
+        group: group || elementName,
+        displayName,
+        fromTime,
+        toTime,
+        fromCandleIndex,
+        toCandleIndex,
+        fromPrice,
+        toPrice,
+        startLevel,
+        endLevel,
+        levels,
+        zones,
+        showTrendLine:
+          d.showTrendLine !== undefined ? Boolean(d.showTrendLine) : true,
+        trendLineColor:
+          typeof d.trendLineColor === 'string' ? d.trendLineColor : undefined,
+        trendLineStyle: d.trendLineStyle === 'solid' ? 'solid' : 'dashed',
+        lineWidth: typeof d.lineWidth === 'number' ? d.lineWidth : 1,
+        extendRight: Boolean(d.extendRight),
+        extendLeft: Boolean(d.extendLeft),
+        showLabels: d.showLabels !== undefined ? Boolean(d.showLabels) : true,
+        labelPosition:
+          d.labelPosition === 'left' || d.labelPosition === 'center'
+            ? d.labelPosition
+            : 'right',
+        exactTimeframeOnly,
+        stretch: false,
+        visible: d.visible !== undefined ? Boolean(d.visible) : false,
+        description:
+          typeof d.description === 'string' ? d.description : undefined,
+        sourceTimeframe,
+      };
+
+      return piboItem;
+    }
 
     if (isKeyLevel) {
       const id =
@@ -315,6 +572,16 @@ export function normalizeDrawings(
         rawType === 'key-level'
           ? 'keyLevel'
           : 'poi';
+      const showCenterLine = d.showCenterLine === true;
+      const centerLineStyle =
+        d.centerLineStyle === 'solid' || d.centerLineStyle === 'dashed'
+          ? d.centerLineStyle
+          : d.centerLineStyle === 'none'
+            ? 'none'
+            : showCenterLine
+              ? 'dashed'
+              : 'none';
+
       const klItem: PoiDrawing = {
         id,
         type: poiType,
@@ -325,7 +592,8 @@ export function normalizeDrawings(
           typeof d.borderColor === 'string' ? d.borderColor : defaultBorder,
         borderWidth: typeof d.borderWidth === 'number' ? d.borderWidth : 1,
         borderStyle: d.borderStyle === 'dashed' ? 'dashed' : 'solid',
-        centerLineStyle: 'dashed',
+        showCenterLine,
+        centerLineStyle,
         centerLineColor:
           typeof d.centerLineColor === 'string'
             ? d.centerLineColor
@@ -495,7 +763,13 @@ function extractDrawingsWithGroups(
             : typeof g.id === 'string' && g.id.trim() !== ''
               ? g.id.trim()
               : undefined;
-        const gDrawings = g.drawings || g.lines || g.zones || g.boxes;
+        const gDrawings =
+          g.drawings ||
+          g.lines ||
+          g.zones ||
+          g.boxes ||
+          g.pibos ||
+          g.fibonaccis;
         if (Array.isArray(gDrawings)) {
           result.push(
             ...normalizeDrawings(gDrawings, sourceTimeframe, groupName),
@@ -534,7 +808,15 @@ function extractCandlePois(
           borderColor: kl.borderColor || '#eab308',
           borderWidth: kl.borderWidth ?? 1,
           borderStyle: kl.borderStyle ?? 'solid',
-          centerLineStyle: 'dashed',
+          showCenterLine: kl.showCenterLine === true,
+          centerLineStyle:
+            kl.centerLineStyle === 'solid' || kl.centerLineStyle === 'dashed'
+              ? kl.centerLineStyle
+              : kl.centerLineStyle === 'none'
+                ? 'none'
+                : kl.showCenterLine === true
+                  ? 'dashed'
+                  : 'none',
           centerLineColor: kl.centerLineColor || kl.borderColor || '#eab308',
           centerLineWidth: 1,
           element: elName,
@@ -589,12 +871,16 @@ export function standardizeChartData(raw: unknown): ForexChartData {
       rawObj.commonZones ||
       rawObj.commonBoxes ||
       rawObj.commonKeyLevels ||
+      rawObj.commonPibos ||
+      rawObj.commonFibonaccis ||
       rawObj.globalDrawings ||
       rawObj.drawings ||
       rawObj.pois ||
       rawObj.zones ||
       rawObj.boxes ||
-      rawObj.keyLevels,
+      rawObj.keyLevels ||
+      rawObj.pibos ||
+      rawObj.fibonaccis,
     rawObj.commonElements ||
       rawObj.elements ||
       rawObj.commonGroups ||
@@ -618,7 +904,9 @@ export function standardizeChartData(raw: unknown): ForexChartData {
               tfObj.zones ||
               tfObj.boxes ||
               tfObj.keyLevels ||
-              tfObj.key_levels,
+              tfObj.key_levels ||
+              tfObj.pibos ||
+              tfObj.fibonaccis,
             tfObj.elements || tfObj.groups,
             tfKey,
           );
@@ -652,7 +940,9 @@ export function standardizeChartData(raw: unknown): ForexChartData {
         rawObj.zones ||
         rawObj.boxes ||
         rawObj.keyLevels ||
-        rawObj.key_levels,
+        rawObj.key_levels ||
+        rawObj.pibos ||
+        rawObj.fibonaccis,
       rawObj.elements || rawObj.groups,
       'D1',
     );

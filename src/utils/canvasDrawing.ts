@@ -8,6 +8,7 @@ import {
   type LineDrawing,
   type ZoneDrawing,
   type PoiDrawing,
+  type PiboDrawing,
 } from '../types/chart.js';
 import { type ThemeMode } from '../types/theme.js';
 import { THEME_PALETTES, adaptColorForTheme } from './themeService.js';
@@ -15,6 +16,7 @@ import {
   resolveAnchorPoint,
   resolveZoneBounds,
   resolvePoiBounds,
+  resolvePiboBounds,
   parseTimeframeDuration,
 } from './timeframeService.js';
 
@@ -121,9 +123,34 @@ export function renderLine(
   ctx.restore();
 }
 
+const CSS_NAMED_COLORS: Record<string, string> = {
+  red: '239, 68, 68',
+  green: '16, 185, 129',
+  blue: '59, 130, 246',
+  cyan: '6, 182, 212',
+  orange: '249, 115, 22',
+  yellow: '234, 179, 8',
+  purple: '168, 85, 247',
+  pink: '236, 72, 153',
+  gray: '148, 163, 184',
+  grey: '148, 163, 184',
+  white: '255, 255, 255',
+  black: '0, 0, 0',
+  emerald: '16, 185, 129',
+  rose: '244, 63, 94',
+  amber: '245, 158, 11',
+  indigo: '99, 102, 241',
+  sky: '14, 165, 233',
+  slate: '100, 116, 139',
+};
+
 export function colorWithAlpha(colorStr: string, alpha: number): string {
   if (!colorStr) return `rgba(14, 165, 233, ${alpha})`;
   const trimmed = colorStr.trim();
+  const lower = trimmed.toLowerCase();
+  if (CSS_NAMED_COLORS[lower]) {
+    return `rgba(${CSS_NAMED_COLORS[lower]}, ${alpha})`;
+  }
   if (trimmed.startsWith('#')) {
     let hex = trimmed.slice(1);
     if (hex.length === 3) {
@@ -844,11 +871,11 @@ export function renderPoi(
     ctx.strokeRect(boxLeft, yMin, boxWidth, boxHeight);
   }
 
-  const centerLineColor = drawing.centerLineColor
-    ? adaptColorForTheme(drawing.centerLineColor, theme)
-    : drawing.borderColor
-      ? adaptColorForTheme(drawing.borderColor, theme)
-      : defaultCenterLineColor;
+  const shouldDrawCenterLine =
+    drawing.showCenterLine === true ||
+    (drawing.centerLineStyle !== undefined &&
+      drawing.centerLineStyle !== 'none' &&
+      drawing.showCenterLine !== false);
 
   if (drawing.showText !== false) {
     const rawText =
@@ -882,25 +909,45 @@ export function renderPoi(
       paddingRight: 14,
     });
 
-    ctx.save();
-    ctx.strokeStyle = colorWithAlpha(centerLineColor, 0.75);
-    ctx.lineWidth = drawing.centerLineWidth ?? 1;
-    ctx.setLineDash([4, 4]);
+    if (shouldDrawCenterLine) {
+      const centerLineColor = drawing.centerLineColor
+        ? adaptColorForTheme(drawing.centerLineColor, theme)
+        : drawing.borderColor
+          ? adaptColorForTheme(drawing.borderColor, theme)
+          : defaultCenterLineColor;
 
-    if (layout.visible) {
-      if (layout.boxLeftLineEnd > boxLeft) {
+      ctx.save();
+      ctx.strokeStyle = colorWithAlpha(centerLineColor, 0.75);
+      ctx.lineWidth = drawing.centerLineWidth ?? 1;
+      if (drawing.centerLineStyle === 'solid') {
+        ctx.setLineDash([]);
+      } else {
+        ctx.setLineDash([4, 4]);
+      }
+
+      if (layout.visible) {
+        if (layout.boxLeftLineEnd > boxLeft) {
+          ctx.beginPath();
+          ctx.moveTo(boxLeft, midY);
+          ctx.lineTo(layout.boxLeftLineEnd, midY);
+          ctx.stroke();
+        }
+        if (layout.boxRightLineStart < boxRight) {
+          ctx.beginPath();
+          ctx.moveTo(layout.boxRightLineStart, midY);
+          ctx.lineTo(boxRight, midY);
+          ctx.stroke();
+        }
+      } else {
         ctx.beginPath();
         ctx.moveTo(boxLeft, midY);
-        ctx.lineTo(layout.boxLeftLineEnd, midY);
-        ctx.stroke();
-      }
-      if (layout.boxRightLineStart < boxRight) {
-        ctx.beginPath();
-        ctx.moveTo(layout.boxRightLineStart, midY);
         ctx.lineTo(boxRight, midY);
         ctx.stroke();
       }
+      ctx.restore();
+    }
 
+    if (layout.visible) {
       const textColor = drawing.textColor
         ? adaptColorForTheme(drawing.textColor, theme)
         : defaultTextColor;
@@ -909,18 +956,22 @@ export function renderPoi(
       ctx.textBaseline = 'middle';
       ctx.font = fontStr;
       ctx.fillText(layout.displayText, layout.x, layout.y);
-    } else {
-      ctx.beginPath();
-      ctx.moveTo(boxLeft, midY);
-      ctx.lineTo(boxRight, midY);
-      ctx.stroke();
     }
-    ctx.restore();
-  } else {
+  } else if (shouldDrawCenterLine) {
+    const centerLineColor = drawing.centerLineColor
+      ? adaptColorForTheme(drawing.centerLineColor, theme)
+      : drawing.borderColor
+        ? adaptColorForTheme(drawing.borderColor, theme)
+        : defaultCenterLineColor;
+
     ctx.save();
     ctx.strokeStyle = colorWithAlpha(centerLineColor, 0.75);
     ctx.lineWidth = drawing.centerLineWidth ?? 1;
-    ctx.setLineDash([4, 4]);
+    if (drawing.centerLineStyle === 'solid') {
+      ctx.setLineDash([]);
+    } else {
+      ctx.setLineDash([4, 4]);
+    }
     ctx.beginPath();
     ctx.moveTo(boxLeft, midY);
     ctx.lineTo(boxRight, midY);
@@ -932,3 +983,193 @@ export function renderPoi(
 }
 
 export const renderKeyLevel = renderPoi;
+
+export function renderPibo(
+  ctx: CanvasRenderingContext2D,
+  drawing: PiboDrawing,
+  candles: Candle[],
+  timeScale: ITimeScaleApi<Time>,
+  series: ISeriesApi<'Candlestick'>,
+  paneWidth: number,
+  isHovered: boolean,
+  currentTimeframe?: string,
+  timeframeUnits?: Record<string, number>,
+  theme: ThemeMode = 'dark',
+): void {
+  if (candles.length === 0) return;
+
+  const targetTf = currentTimeframe || 'H4';
+  const bounds = resolvePiboBounds({
+    fromTime: drawing.fromTime,
+    toTime: drawing.toTime,
+    fromCandleIndex: drawing.fromCandleIndex,
+    toCandleIndex: drawing.toCandleIndex,
+    fromPrice: drawing.fromPrice,
+    toPrice: drawing.toPrice,
+    startLevel: drawing.startLevel,
+    endLevel: drawing.endLevel,
+    levels: drawing.levels,
+    zones: drawing.zones,
+    sourceTimeframe: drawing.sourceTimeframe,
+    targetTimeframe: targetTf,
+    targetCandles: candles,
+    customUnits: timeframeUnits,
+  });
+
+  if (!bounds) return;
+
+  const xStart = timeScale.timeToCoordinate(bounds.startTime as Time);
+  const xEnd = timeScale.timeToCoordinate(bounds.endTime as Time);
+  const yStart = series.priceToCoordinate(bounds.startPrice);
+  const yEnd = series.priceToCoordinate(bounds.endPrice);
+
+  if (xStart === null || xEnd === null || yStart === null || yEnd === null) {
+    return;
+  }
+
+  const xMin = Math.min(xStart, xEnd);
+  const xMax = Math.max(xStart, xEnd);
+
+  const xLeft = drawing.extendLeft ? 0 : Math.max(0, xMin - 6);
+  const xRight = drawing.extendRight
+    ? paneWidth
+    : Math.min(paneWidth, xMax + 14);
+
+  ctx.save();
+
+  for (const zone of bounds.zones) {
+    const yFrom = series.priceToCoordinate(zone.fromPrice);
+    const yTo = series.priceToCoordinate(zone.toPrice);
+    if (yFrom === null || yTo === null) continue;
+
+    const yTop = Math.min(yFrom, yTo);
+    const yBottom = Math.max(yFrom, yTo);
+    const h = Math.max(1, yBottom - yTop);
+    const w = Math.max(1, xRight - xLeft);
+
+    const baseColor = adaptColorForTheme(
+      zone.fillColor || zone.color || drawing.zoneColor || '#ef4444',
+      theme,
+    );
+    const zoneAlpha = isHovered
+      ? (zone.opacity ?? 0.16) + 0.06
+      : (zone.opacity ?? 0.1);
+
+    ctx.save();
+    ctx.fillStyle = colorWithAlpha(baseColor, zoneAlpha);
+    ctx.fillRect(xLeft, yTop, w, h);
+
+    ctx.strokeStyle = colorWithAlpha(baseColor, isHovered ? 0.45 : 0.22);
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.strokeRect(xLeft, yTop, w, h);
+
+    if (zone.showLabel && zone.label) {
+      const fontSize = 10;
+      ctx.font = `bold ${fontSize}px "JetBrains Mono", monospace`;
+      ctx.fillStyle = adaptColorForTheme(zone.color || baseColor, theme);
+      ctx.textBaseline = 'top';
+      ctx.fillText(zone.label, xLeft + 6, yTop + 3);
+    }
+    ctx.restore();
+  }
+
+  if (drawing.showTrendLine !== false) {
+    ctx.save();
+    const trendColor = adaptColorForTheme(
+      drawing.trendLineColor || drawing.lineColor || drawing.color || '#94a3b8',
+      theme,
+    );
+    ctx.strokeStyle = isHovered
+      ? THEME_PALETTES[theme].canvas.lineHoverColor
+      : colorWithAlpha(trendColor, 0.7);
+    ctx.lineWidth = isHovered ? 1.5 : 1;
+    ctx.setLineDash(drawing.trendLineStyle === 'solid' ? [] : [4, 4]);
+
+    ctx.beginPath();
+    ctx.moveTo(xStart, yStart);
+    ctx.lineTo(xEnd, yEnd);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.fillStyle = isHovered
+      ? THEME_PALETTES[theme].canvas.lineHoverColor
+      : trendColor;
+    ctx.beginPath();
+    ctx.arc(xStart, yStart, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(xEnd, yEnd, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  const showLabels = drawing.showLabels !== false;
+  const labelPos = drawing.labelPosition || 'right';
+  const fontSize = 10;
+  const fontStr = `500 ${fontSize}px "JetBrains Mono", monospace`;
+  const piboBarColor = drawing.lineColor || drawing.color || '#3b82f6';
+
+  for (const lvl of bounds.levels) {
+    const y = series.priceToCoordinate(lvl.price);
+    if (y === null) continue;
+
+    const lineColor = lvl.color
+      ? adaptColorForTheme(lvl.color, theme)
+      : adaptColorForTheme(piboBarColor, theme);
+
+    ctx.save();
+    ctx.strokeStyle = isHovered
+      ? THEME_PALETTES[theme].canvas.lineHoverColor
+      : lineColor;
+    ctx.lineWidth = isHovered
+      ? (lvl.lineWidth ?? drawing.lineWidth ?? 1) + 1
+      : (lvl.lineWidth ?? drawing.lineWidth ?? 1);
+
+    if (lvl.lineStyle === 'dashed') {
+      ctx.setLineDash([4, 4]);
+    } else if (lvl.lineStyle === 'dotted') {
+      ctx.setLineDash([2, 2]);
+    } else {
+      ctx.setLineDash([]);
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(xLeft, y);
+    ctx.lineTo(xRight, y);
+    ctx.stroke();
+
+    if (showLabels) {
+      const labelText = lvl.label || `${lvl.level} (${lvl.price.toFixed(5)})`;
+      ctx.font = fontStr;
+      const textWidth = ctx.measureText(labelText).width;
+      const pillHeight = fontSize + 4;
+      const pillY = y - pillHeight / 2;
+
+      let pillX: number;
+      if (labelPos === 'left') {
+        pillX = xLeft + 6;
+      } else if (labelPos === 'center') {
+        pillX = (xLeft + xRight) / 2 - textWidth / 2;
+      } else {
+        pillX = xRight - textWidth - 6;
+      }
+
+      ctx.setLineDash([]);
+      ctx.fillStyle = THEME_PALETTES[theme].chart.background;
+      ctx.fillRect(pillX - 2, pillY, textWidth + 4, pillHeight);
+
+      ctx.fillStyle = isHovered
+        ? THEME_PALETTES[theme].canvas.lineHoverColor
+        : lineColor;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(labelText, pillX, y);
+    }
+
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+export const renderFibonacci = renderPibo;
