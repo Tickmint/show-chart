@@ -7,7 +7,7 @@ import {
   useImperativeHandle,
   useState,
 } from 'react';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Newspaper } from 'lucide-react';
 import {
   createChart,
   type IChartApi,
@@ -28,6 +28,9 @@ import {
   renderZone,
   renderPoi,
   renderPibo,
+  renderCandleNews,
+  renderCandleLabels,
+  type NewsAnchor,
 } from '../../utils/canvasDrawing.js';
 import { canInheritTimeframe } from '../../utils/timeframeService.js';
 import {
@@ -52,6 +55,7 @@ interface ForexChartProps {
   onHoverDrawing: (id: string | null) => void;
   theme?: ThemeMode;
   onPriceScaleWidthChange?: (width: number) => void;
+  isNewsVisible?: boolean;
 }
 
 const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
@@ -69,6 +73,7 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
       onHoverDrawing,
       theme = 'dark',
       onPriceScaleWidthChange,
+      isNewsVisible = true,
     },
     ref,
   ) => {
@@ -86,6 +91,9 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
     const contextMenuRef = useRef<HTMLDivElement>(null);
     const [isChartModified, setIsChartModified] = useState<boolean>(false);
     const isChartModifiedRef = useRef<boolean>(false);
+    const [hoveredNews, setHoveredNews] = useState<NewsAnchor | null>(null);
+    const hoveredNewsRef = useRef<NewsAnchor | null>(null);
+    const newsAnchorsRef = useRef<NewsAnchor[]>([]);
 
     const markChartModified = useCallback(() => {
       if (!isChartModifiedRef.current) {
@@ -113,6 +121,7 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
       hoveredElementId,
       theme,
       onPriceScaleWidthChange,
+      isNewsVisible,
     });
 
     useEffect(() => {
@@ -128,6 +137,7 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
         hoveredElementId,
         theme,
         onPriceScaleWidthChange,
+        isNewsVisible,
       };
     });
 
@@ -276,6 +286,44 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
             );
           }
         } catch {}
+      }
+
+      try {
+        renderCandleLabels(
+          ctx,
+          currentCandles,
+          timeScale,
+          series,
+          paneWidth,
+          paneHeight,
+          true,
+          currentTheme,
+          currentDrawings,
+          currentTf,
+          tfUnits,
+          elVis,
+          hoveredEl,
+        );
+      } catch {}
+
+      if (latestPropsRef.current.isNewsVisible !== false) {
+        try {
+          const anchors = renderCandleNews(
+            ctx,
+            currentCandles,
+            timeScale,
+            series,
+            paneWidth,
+            paneHeight,
+            currentTheme,
+            hoveredNewsRef.current?.candle.time,
+          );
+          newsAnchorsRef.current = anchors;
+        } catch {
+          newsAnchorsRef.current = [];
+        }
+      } else {
+        newsAnchorsRef.current = [];
       }
 
       ctx.restore();
@@ -473,6 +521,38 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
           if (dx > 3 || dy > 3) {
             markChartModified();
           }
+        } else if (container) {
+          const rect = container.getBoundingClientRect();
+          const px = e.clientX - rect.left;
+          const py = e.clientY - rect.top;
+          let matched: NewsAnchor | null = null;
+          for (const a of newsAnchorsRef.current) {
+            const dx = px - a.x;
+            const dy = py - a.y;
+            if (dx * dx + dy * dy <= (a.radius + 6) * (a.radius + 6)) {
+              matched = a;
+              break;
+            }
+          }
+          if (matched) {
+            if (hoveredNewsRef.current?.candle.time !== matched.candle.time) {
+              hoveredNewsRef.current = matched;
+              setHoveredNews(matched);
+              requestCanvasRedraw();
+            }
+          } else if (hoveredNewsRef.current) {
+            hoveredNewsRef.current = null;
+            setHoveredNews(null);
+            requestCanvasRedraw();
+          }
+        }
+      };
+
+      const handlePointerLeave = () => {
+        if (hoveredNewsRef.current) {
+          hoveredNewsRef.current = null;
+          setHoveredNews(null);
+          requestCanvasRedraw();
         }
       };
 
@@ -537,6 +617,7 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
       };
 
       container.addEventListener('pointerdown', handlePointerDown);
+      container.addEventListener('pointerleave', handlePointerLeave);
       window.addEventListener('pointermove', handlePointerMove);
       window.addEventListener('pointerup', stopDragLoop);
       window.addEventListener('pointercancel', stopDragLoop);
@@ -585,6 +666,7 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
 
       return () => {
         container.removeEventListener('pointerdown', handlePointerDown);
+        container.removeEventListener('pointerleave', handlePointerLeave);
         window.removeEventListener('pointermove', handlePointerMove);
         window.removeEventListener('pointerup', stopDragLoop);
         window.removeEventListener('pointercancel', stopDragLoop);
@@ -700,6 +782,7 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
       hoveredDrawingId,
       hoveredElementId,
       theme,
+      isNewsVisible,
       requestCanvasRedraw,
     ]);
 
@@ -719,6 +802,79 @@ const ForexChartComponent = forwardRef<ForexChartRef, ForexChartProps>(
           onMouseLeave={() => onHoverDrawing(null)}
           className="absolute top-0 left-0 pointer-events-none z-10"
         />
+        {hoveredNews && (
+          <div
+            style={{
+              left: `${Math.max(
+                10,
+                Math.min(
+                  hoveredNews.x - 130,
+                  (containerRef.current?.clientWidth || 800) - 290,
+                ),
+              )}px`,
+              bottom: `${Math.max(
+                16,
+                (containerRef.current?.clientHeight || 600) -
+                  (hoveredNews.y - hoveredNews.radius) +
+                  10,
+              )}px`,
+            }}
+            className="absolute z-40 bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 rounded-xl p-3 shadow-2xl backdrop-blur-md w-72 pointer-events-none text-xs max-h-[min(380px,calc(100vh-120px))] flex flex-col"
+          >
+            <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-slate-100">
+                <Newspaper className="w-3.5 h-3.5 text-sky-500" />
+                <span>News Events ({hoveredNews.news.length})</span>
+              </div>
+            </div>
+            <div className="space-y-2 overflow-y-auto pr-1">
+              {hoveredNews.news.map((item, idx) => {
+                const itemTime = item.time ?? hoveredNews.candle.time;
+                const formattedTime = new Date(
+                  itemTime * 1000,
+                ).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                });
+                return (
+                  <div
+                    key={idx}
+                    className="space-y-1 pb-2 border-b border-slate-100 dark:border-slate-800/60 last:border-0 last:pb-0"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {item.impact && (
+                          <span
+                            className={`text-[9px] px-1.5 py-0.5 rounded font-semibold uppercase shrink-0 ${
+                              item.impact === 'high'
+                                ? 'bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30'
+                                : item.impact === 'medium'
+                                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                                  : 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30'
+                            }`}
+                          >
+                            {item.impact}
+                          </span>
+                        )}
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                          {item.title}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono shrink-0">
+                        {formattedTime}
+                      </span>
+                    </div>
+                    {item.description && (
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+                        {item.description}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {contextMenu && isChartModified && (
           <div
             ref={contextMenuRef}

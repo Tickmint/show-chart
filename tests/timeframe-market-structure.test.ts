@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import {
   getTimeframeConversionRatio,
@@ -129,15 +130,24 @@ describe('Timeframe Conversions, 1-Way Downward Inheritance & Market Structure',
   });
 
   describe('Test 4: Generated Test Data Verification (Market Structure & Schema)', () => {
-    it('should validate EUR_USD_test_data.json schema, units, conversions, and Market Structure', () => {
-      const testDataPath = path.join(
+    it('should validate EUR_USD_test_data.json.gz schema, units, conversions, and Market Structure', () => {
+      const rawJsonPath = path.join(
         root,
         'test_data',
         'EUR_USD_test_data.json',
       );
+      expect(fs.existsSync(rawJsonPath)).toBe(false);
+
+      const testDataPath = path.join(
+        root,
+        'test_data',
+        'EUR_USD_test_data.json.gz',
+      );
       expect(fs.existsSync(testDataPath)).toBe(true);
 
-      const content = JSON.parse(fs.readFileSync(testDataPath, 'utf8'));
+      const compressedBuf = fs.readFileSync(testDataPath);
+      const decompressedStr = zlib.gunzipSync(compressedBuf).toString('utf8');
+      const content = JSON.parse(decompressedStr);
 
       expect(content.timeframeUnits).toBeDefined();
       expect(Object.keys(content.timeframeUnits)).toEqual(['M5', 'M2', 'M1']);

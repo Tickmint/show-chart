@@ -24,6 +24,30 @@ export interface CandlePoiConfig {
 
 export type CandleKeyLevelConfig = CandlePoiConfig;
 
+export interface CandleNewsItem {
+  id?: string;
+  title: string;
+  description?: string;
+  time?: number;
+  impact?: 'high' | 'medium' | 'low' | string;
+  source?: string;
+}
+
+export interface CandleLabelConfig {
+  id?: string;
+  text: string;
+  title?: string;
+  color?: string;
+  textColor?: string;
+  borderColor?: string;
+  visible?: boolean;
+  pointPrice?: 'high' | 'low' | number;
+  position?: 'above' | 'below' | 'auto';
+  fontSize?: number;
+  element?: string;
+  group?: string;
+}
+
 export interface Candle {
   time: number;
   open: number;
@@ -34,6 +58,9 @@ export interface Candle {
   poi?: CandlePoiConfig;
   keyLevels?: CandlePoiConfig[];
   keyLevel?: CandlePoiConfig;
+  news?: CandleNewsItem[];
+  labels?: CandleLabelConfig[];
+  label?: CandleLabelConfig;
 }
 
 export type DrawingType =
@@ -207,6 +234,8 @@ export interface TimeframeData {
 export interface ForexChartData {
   symbol?: string;
   title?: string;
+  group?: string;
+  category?: string;
   description?: string;
   timeframeUnits?: Record<string, number>;
   timeframeConversions?: TimeframeConversion[];
@@ -215,6 +244,15 @@ export interface ForexChartData {
     [timeframeKey: string]: TimeframeData;
   };
   defaultTimeframe?: string;
+}
+
+export interface ChartCase {
+  id: string;
+  name: string;
+  title?: string;
+  group?: string;
+  filename: string;
+  data: ForexChartData;
 }
 
 export interface OHLCData {

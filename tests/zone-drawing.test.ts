@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import {
   canInheritTimeframe,
@@ -189,16 +190,25 @@ describe('Zone / Box Drawing Feature (Multi-Timeframe & Padding Rules)', () => {
     });
   });
 
-  describe('Test 4: Test Data Verification (EUR_USD_test_data.json)', () => {
-    it('should verify EUR_USD_test_data.json contains valid multi-timeframe Zone & Box drawings', () => {
-      const testDataPath = path.join(
+  describe('Test 4: Test Data Verification (EUR_USD_test_data.json.gz)', () => {
+    it('should verify EUR_USD_test_data.json.gz contains valid multi-timeframe Zone & Box drawings', () => {
+      const rawJsonPath = path.join(
         root,
         'test_data',
         'EUR_USD_test_data.json',
       );
+      expect(fs.existsSync(rawJsonPath)).toBe(false);
+
+      const testDataPath = path.join(
+        root,
+        'test_data',
+        'EUR_USD_test_data.json.gz',
+      );
       expect(fs.existsSync(testDataPath)).toBe(true);
 
-      const content = JSON.parse(fs.readFileSync(testDataPath, 'utf8'));
+      const compressedBuf = fs.readFileSync(testDataPath);
+      const decompressedStr = zlib.gunzipSync(compressedBuf).toString('utf8');
+      const content = JSON.parse(decompressedStr);
 
       const m5Drawings = content.timeframes?.M5?.drawings || [];
       const m5Zone = m5Drawings.find(

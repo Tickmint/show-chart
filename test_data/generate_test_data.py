@@ -311,17 +311,154 @@ def aggregate_candles(
         c_low = min(c["low"] for c in chunk)
         c_close = chunk[-1]["close"]
 
-        aggregated.append({
+        cand_data: Dict[str, Any] = {
             "time": c_time,
             "open": round(c_open, decimals),
             "high": round(c_high, decimals),
             "low": round(c_low, decimals),
             "close": round(c_close, decimals)
-        })
+        }
+
+        chunk_news = []
+        for c in chunk:
+            if "news" in c and c["news"]:
+                chunk_news.extend(c["news"])
+        if chunk_news:
+            cand_data["news"] = chunk_news
+
+        aggregated.append(cand_data)
     return aggregated
 
 
-def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -> Dict[str, Any]:
+NEWS_TEMPLATES = [
+    {
+        "title": "US Non-Farm Payrolls (NFP)",
+        "impact": "high",
+        "description": "Actual: 254K vs Forecast: 147K - employment surged."
+    },
+    {
+        "title": "Fed Interest Rate Decision",
+        "impact": "high",
+        "description": "Fed maintains policy trajectory with 25 bps shift."
+    },
+    {
+        "title": "US Core CPI Inflation MoM",
+        "impact": "high",
+        "description": "Core consumer prices rise 0.3% MoM."
+    },
+    {
+        "title": "ECB Monetary Policy Statement",
+        "impact": "high",
+        "description": "President notes balanced risks to economic growth."
+    },
+    {
+        "title": "Retail Sales MoM",
+        "impact": "medium",
+        "description": "Consumer spending advanced 0.4% in latest report."
+    },
+    {
+        "title": "Initial Jobless Claims",
+        "impact": "medium",
+        "description": "Weekly claims dropped to 218K beating expectations."
+    },
+    {
+        "title": "Manufacturing PMI",
+        "impact": "medium",
+        "description": "Survey indicates expansion above the 50 neutral mark."
+    },
+    {
+        "title": "Services PMI",
+        "impact": "medium",
+        "description": "Business activity in the services sector strengthened."
+    },
+    {
+        "title": "Trade Balance",
+        "impact": "low",
+        "description": "Goods and services trade gap narrowed moderately."
+    },
+    {
+        "title": "Wholesale Inventories",
+        "impact": "low",
+        "description": "Inventories increased slightly by 0.2%."
+    }
+]
+
+LABEL_TEMPLATES = [
+    {"text": "Bullish Order Block (OB)", "position": "below"},
+    {"text": "Bearish Order Block (OB)", "position": "above"},
+    {"text": "Break of Structure (BOS)", "position": "above"},
+    {"text": "Change of Character (CHoCH)", "position": "below"},
+    {"text": "Liquidity Sweep (BSL)", "position": "above"},
+    {"text": "Liquidity Sweep (SSL)", "position": "below"},
+    {"text": "Fair Value Gap (FVG)", "position": "above"},
+    {"text": "Asian Session High", "position": "above"},
+    {"text": "New York Open", "position": "below"},
+]
+
+
+def inject_random_news_and_labels(
+    m1_candles: List[Dict[str, Any]],
+    m2_candles: List[Dict[str, Any]],
+    m5_candles: List[Dict[str, Any]],
+    rng: random.Random
+):
+    """Randomly injects 0, 1, or multiple news items and callout labels with true/false visibility."""
+    # 1. Random News on M1 candles (some with 1, some with 2 or 3 items)
+    news_indices = sorted(rng.sample(range(20, len(m1_candles) - 20), k=18))
+    for idx in news_indices:
+        num_items = rng.choices([1, 2, 3], weights=[0.65, 0.25, 0.10])[0]
+        items = rng.sample(NEWS_TEMPLATES, k=min(num_items, len(NEWS_TEMPLATES)))
+        m1_candles[idx]["news"] = [
+            {
+                "id": f"news-{m1_candles[idx]['time']}-{k+1}",
+                "title": item["title"],
+                "impact": item["impact"],
+                "description": item["description"],
+                "time": m1_candles[idx]["time"] + k * 60
+            }
+            for k, item in enumerate(items)
+        ]
+
+    # Re-aggregate news into M2 and M5
+    for i, m2_c in enumerate(m2_candles):
+        c_chunk = m1_candles[i * 2 : (i + 1) * 2]
+        c_news = [n for c in c_chunk if "news" in c for n in c["news"]]
+        if c_news:
+            m2_c["news"] = c_news
+
+    for i, m5_c in enumerate(m5_candles):
+        c_chunk = m1_candles[i * 5 : (i + 1) * 5]
+        c_news = [n for c in c_chunk if "news" in c for n in c["news"]]
+        if c_news:
+            m5_c["news"] = c_news
+
+    # 2. Random Callout Labels across timeframes (with random true/false visibility)
+    def add_labels_to_candles(c_list: List[Dict[str, Any]], count: int):
+        indices = sorted(rng.sample(range(10, len(c_list) - 10), k=min(count, len(c_list) - 20)))
+        for k, idx in enumerate(indices):
+            tmpl = LABEL_TEMPLATES[k % len(LABEL_TEMPLATES)]
+            is_visible = (k % 3 != 0)  # 2/3 true, 1/3 false to test default true/false
+            label_obj = {
+                "id": f"label-{c_list[idx]['time']}-1",
+                "text": tmpl["text"],
+                "position": tmpl.get("position", "auto"),
+                "visible": is_visible
+            }
+            c_list[idx]["labels"] = [label_obj]
+            c_list[idx]["label"] = label_obj
+
+    add_labels_to_candles(m5_candles, 8)
+    add_labels_to_candles(m2_candles, 10)
+    add_labels_to_candles(m1_candles, 12)
+
+
+def create_forex_dataset(
+    pair_name: str,
+    base_price: float,
+    volatility: float,
+    title: Optional[str] = None,
+    group: Optional[str] = None
+) -> Dict[str, Any]:
     """Builds an aligned 3-timeframe (M5, M2, M1) dataset with clean SMC structure and 5 blocks per TF."""
     random.seed(hash(pair_name) % 100000)
     base_start_time = 1791158400
@@ -334,6 +471,9 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
     # 2. Synchronized Aggregations: M1 -> M2 (2x M1) and M1 -> M5 (5x M1)
     m2_candles = aggregate_candles(m1_candles, 2, decimals)  # 600 M2 candles
     m5_candles = aggregate_candles(m1_candles, 5, decimals)  # 240 M5 candles
+
+    rng = random.Random(hash(pair_name) % 100000 + 42)
+    inject_random_news_and_labels(m1_candles, m2_candles, m5_candles, rng)
 
     pair_slug = pair_name.lower().replace('/', '_')
 
@@ -1100,17 +1240,20 @@ def create_forex_dataset(pair_name: str, base_price: float, volatility: float) -
         "M1": 60
     }
 
-    return {
+    res = {
         "symbol": pair_name,
-        "title": f"{pair_name} Multi-Timeframe Market Structure & POI / Key Levels",
+        "title": title or f"{pair_name} Multi-Timeframe Market Structure & POI / Key Levels",
         "description": "M5/M2/M1 Hierarchical Market Structure with POI, Key Level, and Imbalance blocks.",
         "timeframeUnits": timeframe_units,
         "timeframes": timeframes_dict
     }
+    if group:
+        res["group"] = group
+    return res
 
 
 def save_test_dataset(data: Dict[str, Any], output_dir: str):
-    """Saves both uncompressed .json and compressed .json.gz files."""
+    """Saves ONLY compressed .json.gz files (no raw .json files generated)."""
     os.makedirs(output_dir, exist_ok=True)
     symbol_slug = data["symbol"].replace("/", "_")
 
@@ -1120,29 +1263,56 @@ def save_test_dataset(data: Dict[str, Any], output_dir: str):
     json_path = os.path.join(output_dir, json_filename)
     gz_path = os.path.join(output_dir, gz_filename)
 
-    json_bytes = json.dumps(data, indent=2).encode("utf-8")
-    with open(json_path, "wb") as f:
-        f.write(json_bytes)
+    # Clean up old raw uncompressed .json if present
+    if os.path.exists(json_path):
+        try:
+            os.remove(json_path)
+        except OSError:
+            pass
 
+    json_bytes = json.dumps(data, indent=2).encode("utf-8")
     with gzip.open(gz_path, "wb", compresslevel=9) as gz_f:
         gz_f.write(json_bytes)
 
-    orig_size = len(json_bytes) / 1024.0
     gz_size = os.path.getsize(gz_path) / 1024.0
+    orig_size = len(json_bytes) / 1024.0
     ratio = (1.0 - (gz_size / orig_size)) * 100.0
 
     print(f"Generated: {data['symbol']}")
-    print(f"   -> JSON: {json_filename} ({orig_size:.1f} KB)")
-    print(f"   -> GZIP: {gz_filename} ({gz_size:.1f} KB, -{ratio:.1f}% compression)")
+    print(f"   -> GZIP ONLY: {gz_filename} ({gz_size:.1f} KB, -{ratio:.1f}% compression)")
 
 
 def main():
     root_dir = os.path.dirname(os.path.abspath(__file__))
-    pairs = [
-        ("EUR/USD", 1.08200, 0.00030),
-        ("GBP/USD", 1.26500, 0.00035),
-        ("USD/JPY", 154.20, 0.05),
-        ("XAU/USD", 2650.00, 1.2),
+    cases_config = [
+        {
+            "pair": "EUR/USD",
+            "price": 1.08200,
+            "vol": 0.00030,
+            "title": "Asian Liquidity Sweep & London Expansion",
+            "group": "Forex Majors"
+        },
+        {
+            "pair": "GBP/USD",
+            "price": 1.26500,
+            "vol": 0.00035,
+            "title": "Marubozu Key Level Breakout & Retest",
+            "group": "Forex Majors"
+        },
+        {
+            "pair": "USD/JPY",
+            "price": 154.20,
+            "vol": 0.05,
+            "title": "Order Block Mitigation & Trend Continuation",
+            "group": None # Case with no group
+        },
+        {
+            "pair": "XAU/USD",
+            "price": 2650.00,
+            "vol": 1.2,
+            "title": "High Volatility FVG Imbalance Fill",
+            "group": "Commodities & Metals"
+        },
     ]
 
     print("=" * 70)
@@ -1152,8 +1322,14 @@ def main():
     print("Smaller Timeframes strictly in LATEST Pulse Wave / Pullback")
     print("=" * 70)
 
-    for pair, price, vol in pairs:
-        dataset = create_forex_dataset(pair, price, vol)
+    for item in cases_config:
+        dataset = create_forex_dataset(
+            item["pair"],
+            item["price"],
+            item["vol"],
+            title=item["title"],
+            group=item["group"]
+        )
         save_test_dataset(dataset, root_dir)
 
     print("\n" + "=" * 70)

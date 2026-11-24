@@ -8,6 +8,8 @@ import {
   type PriceOption,
   type TimeframeConversion,
   type CandlePoiConfig,
+  type CandleNewsItem,
+  type CandleLabelConfig,
   type PoiDrawing,
   type PiboDrawing,
   type PiboLevelConfig,
@@ -151,6 +153,218 @@ export function normalizeCandles(rawCandles: unknown[]): Candle[] {
         candleObj.keyLevels = pois;
         candleObj.keyLevel = pois[0];
       }
+
+      let news: CandleNewsItem[] | undefined;
+      const rawNewsList =
+        c.news ??
+        c.newsList ??
+        c.news_items ??
+        c.events ??
+        (c.event ? [c.event] : undefined);
+      if (Array.isArray(rawNewsList)) {
+        news = rawNewsList
+          .map((n) => {
+            if (!n) return null;
+            if (typeof n === 'string') {
+              return { title: n.trim() };
+            }
+            if (typeof n === 'object') {
+              const nObj = n as Record<string, unknown>;
+              const title = String(
+                nObj.title ?? nObj.headline ?? nObj.name ?? nObj.text ?? 'News',
+              ).trim();
+              if (!title) return null;
+              return {
+                id: typeof nObj.id === 'string' ? nObj.id : undefined,
+                title,
+                description:
+                  typeof nObj.description === 'string'
+                    ? nObj.description.trim()
+                    : typeof nObj.details === 'string'
+                      ? nObj.details.trim()
+                      : undefined,
+                time:
+                  nObj.time !== undefined
+                    ? normalizeTimestamp(nObj.time as number | string)
+                    : undefined,
+                impact:
+                  typeof nObj.impact === 'string'
+                    ? (nObj.impact.toLowerCase() as CandleNewsItem['impact'])
+                    : undefined,
+                source:
+                  typeof nObj.source === 'string'
+                    ? nObj.source.trim()
+                    : undefined,
+              };
+            }
+            return null;
+          })
+          .filter(Boolean) as CandleNewsItem[];
+      } else if (typeof rawNewsList === 'object' && rawNewsList !== null) {
+        const nObj = rawNewsList as Record<string, unknown>;
+        const title = String(
+          nObj.title ?? nObj.headline ?? nObj.name ?? nObj.text ?? 'News',
+        ).trim();
+        if (title) {
+          news = [
+            {
+              id: typeof nObj.id === 'string' ? nObj.id : undefined,
+              title,
+              description:
+                typeof nObj.description === 'string'
+                  ? nObj.description.trim()
+                  : undefined,
+              time:
+                nObj.time !== undefined
+                  ? normalizeTimestamp(nObj.time as number | string)
+                  : undefined,
+              impact:
+                typeof nObj.impact === 'string'
+                  ? (nObj.impact.toLowerCase() as CandleNewsItem['impact'])
+                  : undefined,
+              source:
+                typeof nObj.source === 'string'
+                  ? nObj.source.trim()
+                  : undefined,
+            },
+          ];
+        }
+      } else if (typeof rawNewsList === 'string' && rawNewsList.trim() !== '') {
+        news = [{ title: rawNewsList.trim() }];
+      }
+
+      if (news && news.length > 0) {
+        candleObj.news = news;
+      }
+
+      let labels: CandleLabelConfig[] | undefined;
+      const rawLabelsList =
+        c.labels ?? c.label ?? c.callouts ?? c.callout ?? c.tags ?? c.tag;
+      if (Array.isArray(rawLabelsList)) {
+        labels = rawLabelsList
+          .map((l, lIdx) => {
+            if (!l) return null;
+            if (typeof l === 'string') {
+              return {
+                id: `label-${time}-${lIdx}`,
+                text: l.trim(),
+                visible: true,
+              };
+            }
+            if (typeof l === 'object') {
+              const lObj = l as Record<string, unknown>;
+              const text = String(
+                lObj.text ?? lObj.label ?? lObj.title ?? lObj.name ?? '',
+              ).trim();
+              if (!text) return null;
+              const isVisible =
+                typeof lObj.visible === 'boolean'
+                  ? lObj.visible
+                  : typeof lObj.show === 'boolean'
+                    ? lObj.show
+                    : true;
+              return {
+                id:
+                  typeof lObj.id === 'string'
+                    ? lObj.id
+                    : `label-${time}-${lIdx}`,
+                text,
+                title:
+                  typeof lObj.title === 'string'
+                    ? lObj.title.trim()
+                    : undefined,
+                color:
+                  typeof lObj.color === 'string'
+                    ? lObj.color.trim()
+                    : undefined,
+                textColor:
+                  typeof lObj.textColor === 'string'
+                    ? lObj.textColor.trim()
+                    : undefined,
+                borderColor:
+                  typeof lObj.borderColor === 'string'
+                    ? lObj.borderColor.trim()
+                    : undefined,
+                visible: isVisible,
+                pointPrice:
+                  lObj.pointPrice === 'low' || lObj.pointPrice === 'high'
+                    ? lObj.pointPrice
+                    : typeof lObj.pointPrice === 'number'
+                      ? lObj.pointPrice
+                      : undefined,
+                position:
+                  lObj.position === 'above' || lObj.position === 'below'
+                    ? lObj.position
+                    : 'auto',
+                fontSize:
+                  typeof lObj.fontSize === 'number' ? lObj.fontSize : undefined,
+              };
+            }
+            return null;
+          })
+          .filter(Boolean) as CandleLabelConfig[];
+      } else if (typeof rawLabelsList === 'object' && rawLabelsList !== null) {
+        const lObj = rawLabelsList as Record<string, unknown>;
+        const text = String(
+          lObj.text ?? lObj.label ?? lObj.title ?? lObj.name ?? '',
+        ).trim();
+        if (text) {
+          const isVisible =
+            typeof lObj.visible === 'boolean'
+              ? lObj.visible
+              : typeof lObj.show === 'boolean'
+                ? lObj.show
+                : true;
+          labels = [
+            {
+              id: typeof lObj.id === 'string' ? lObj.id : `label-${time}-0`,
+              text,
+              title:
+                typeof lObj.title === 'string' ? lObj.title.trim() : undefined,
+              color:
+                typeof lObj.color === 'string' ? lObj.color.trim() : undefined,
+              textColor:
+                typeof lObj.textColor === 'string'
+                  ? lObj.textColor.trim()
+                  : undefined,
+              borderColor:
+                typeof lObj.borderColor === 'string'
+                  ? lObj.borderColor.trim()
+                  : undefined,
+              visible: isVisible,
+              pointPrice:
+                lObj.pointPrice === 'low' || lObj.pointPrice === 'high'
+                  ? lObj.pointPrice
+                  : typeof lObj.pointPrice === 'number'
+                    ? lObj.pointPrice
+                    : undefined,
+              position:
+                lObj.position === 'above' || lObj.position === 'below'
+                  ? lObj.position
+                  : 'auto',
+              fontSize:
+                typeof lObj.fontSize === 'number' ? lObj.fontSize : undefined,
+            },
+          ];
+        }
+      } else if (
+        typeof rawLabelsList === 'string' &&
+        rawLabelsList.trim() !== ''
+      ) {
+        labels = [
+          {
+            id: `label-${time}-0`,
+            text: rawLabelsList.trim(),
+            visible: true,
+          },
+        ];
+      }
+
+      if (labels && labels.length > 0) {
+        candleObj.labels = labels;
+        candleObj.label = labels[0];
+      }
+
       return candleObj;
     })
     .filter((c) => c.time > 0 && !isNaN(c.open) && !isNaN(c.close));
@@ -1032,9 +1246,18 @@ export function standardizeChartData(raw: unknown): ForexChartData {
     }
   }
 
+  const group =
+    typeof rawObj.group === 'string' && rawObj.group.trim() !== ''
+      ? rawObj.group.trim()
+      : typeof rawObj.category === 'string' && rawObj.category.trim() !== ''
+        ? rawObj.category.trim()
+        : undefined;
+
   return {
     symbol,
     title,
+    group,
+    category: group,
     description,
     timeframeUnits,
     timeframeConversions,
@@ -1108,4 +1331,185 @@ export async function parseChartFile(file: File): Promise<{
       originalSize,
     },
   };
+}
+
+export interface ChartCase {
+  id: string;
+  name: string;
+  title?: string;
+  group?: string;
+  filename: string;
+  data: ForexChartData;
+}
+
+export async function parseMultipleChartFiles(
+  files: File[],
+): Promise<ChartCase[]> {
+  const chartFiles = files.filter(
+    (f) =>
+      f.name.endsWith('.json') ||
+      f.name.endsWith('.gz') ||
+      f.name.endsWith('.gzip'),
+  );
+
+  const results: ChartCase[] = [];
+  for (const file of chartFiles) {
+    try {
+      const { data, fileInfo } = await parseChartFile(file);
+      const cleanName =
+        data.symbol ||
+        fileInfo.name.replace(/\.(json|gz|gzip|\.json\.gz)$/i, '');
+      const rawData = data as unknown as Record<string, unknown>;
+      const title =
+        (typeof data.title === 'string' && data.title.trim()) ||
+        (typeof rawData.scenario === 'string' &&
+          String(rawData.scenario).trim()) ||
+        undefined;
+      const group =
+        (typeof data.group === 'string' && data.group.trim()) ||
+        (typeof data.category === 'string' && data.category.trim()) ||
+        undefined;
+
+      results.push({
+        id: file.name,
+        name: cleanName,
+        title,
+        group,
+        filename: file.name,
+        data,
+      });
+    } catch (e) {
+      console.warn(`Failed to parse ${file.name}:`, e);
+    }
+  }
+
+  results.sort((a, b) => a.name.localeCompare(b.name));
+  return results;
+}
+
+interface WebkitFileSystemEntry {
+  isFile: boolean;
+  isDirectory: boolean;
+  name: string;
+}
+
+interface WebkitFileEntry extends WebkitFileSystemEntry {
+  file: (
+    successCallback: (file: File) => void,
+    errorCallback?: (error: unknown) => void,
+  ) => void;
+}
+
+interface WebkitDirectoryReader {
+  readEntries: (
+    successCallback: (entries: WebkitFileSystemEntry[]) => void,
+    errorCallback?: (error: unknown) => void,
+  ) => void;
+}
+
+interface WebkitDirectoryEntry extends WebkitFileSystemEntry {
+  createReader: () => WebkitDirectoryReader;
+}
+
+export async function getFilesFromDataTransfer(
+  dataTransfer: DataTransfer,
+): Promise<File[]> {
+  const files: File[] = [];
+  const items = dataTransfer.items;
+
+  if (
+    items &&
+    items.length > 0 &&
+    typeof (items[0] as unknown as { webkitGetAsEntry?: () => unknown })
+      ?.webkitGetAsEntry === 'function'
+  ) {
+    const entries: WebkitFileSystemEntry[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const entry = (
+        items[i] as unknown as {
+          webkitGetAsEntry: () => WebkitFileSystemEntry | null;
+        }
+      ).webkitGetAsEntry();
+      if (entry) entries.push(entry);
+    }
+
+    const readEntry = async (entry: WebkitFileSystemEntry): Promise<void> => {
+      if (entry.isFile) {
+        await new Promise<void>((resolve) => {
+          (entry as WebkitFileEntry).file(
+            (f: File) => {
+              files.push(f);
+              resolve();
+            },
+            () => resolve(),
+          );
+        });
+      } else if (entry.isDirectory) {
+        const dirReader = (entry as WebkitDirectoryEntry).createReader();
+        const subEntries = await new Promise<WebkitFileSystemEntry[]>(
+          (resolve) => {
+            dirReader.readEntries(
+              (ents: WebkitFileSystemEntry[]) => resolve(ents),
+              () => resolve([]),
+            );
+          },
+        );
+        for (const sub of subEntries) {
+          await readEntry(sub);
+        }
+      }
+    };
+
+    for (const entry of entries) {
+      await readEntry(entry);
+    }
+
+    if (files.length > 0) return files;
+  }
+
+  if (dataTransfer.files && dataTransfer.files.length > 0) {
+    return Array.from(dataTransfer.files);
+  }
+  return files;
+}
+
+export interface FileSystemHandleLike {
+  kind: 'file' | 'directory';
+  name: string;
+}
+
+export interface FileSystemFileHandleLike extends FileSystemHandleLike {
+  kind: 'file';
+  getFile: () => Promise<File>;
+}
+
+export interface FileSystemDirectoryHandleLike extends FileSystemHandleLike {
+  kind: 'directory';
+  values: () => AsyncIterable<FileSystemHandleLike>;
+}
+
+export async function getFilesFromDirectoryHandle(
+  dirHandle: unknown,
+): Promise<File[]> {
+  const files: File[] = [];
+  if (!dirHandle || typeof dirHandle !== 'object') return files;
+
+  const typedHandle = dirHandle as FileSystemDirectoryHandleLike;
+  if (typeof typedHandle.values !== 'function') return files;
+
+  for await (const entry of typedHandle.values()) {
+    if (entry.kind === 'file') {
+      try {
+        const file = await (entry as FileSystemFileHandleLike).getFile();
+        files.push(file);
+      } catch {}
+    } else if (entry.kind === 'directory') {
+      try {
+        const subFiles = await getFilesFromDirectoryHandle(entry);
+        files.push(...subFiles);
+      } catch {}
+    }
+  }
+
+  return files;
 }
