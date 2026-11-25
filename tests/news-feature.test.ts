@@ -123,7 +123,6 @@ describe('Candle News Feature (Circle N Under Candle & Multi-News Support)', () 
         'dark',
       );
 
-      // paneHeight = 600, radius = 9, bottomY = 600 - 9 - 5 = 586
       expect(anchors.length).toBe(1);
       expect(anchors[0]?.x).toBe(150);
       expect(anchors[0]?.y).toBe(586);
@@ -160,6 +159,122 @@ describe('Candle News Feature (Circle N Under Candle & Multi-News Support)', () 
 
       expect(singleNews.length).toBeGreaterThan(0);
       expect(multiNews.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Test 4: News Hover Crosshair & Vertical Guideline Rendering', () => {
+    it('should draw crosshair vertical and horizontal dashed guidelines intersecting on hovered news candle', () => {
+      const candles: Candle[] = [
+        {
+          time: 1000,
+          open: 1.08,
+          high: 1.09,
+          low: 1.075,
+          close: 1.085,
+          news: [{ title: 'CPI Release', impact: 'high' }],
+        },
+        {
+          time: 2000,
+          open: 1.085,
+          high: 1.095,
+          low: 1.082,
+          close: 1.09,
+        },
+      ];
+
+      const mockCtx = {
+        save: vi.fn(),
+        restore: vi.fn(),
+        beginPath: vi.fn(),
+        arc: vi.fn(),
+        fill: vi.fn(),
+        stroke: vi.fn(),
+        fillText: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        fillRect: vi.fn(),
+        setLineDash: vi.fn(),
+      } as unknown as CanvasRenderingContext2D;
+
+      const mockTimeScale = {
+        timeToCoordinate: vi.fn((t: number) => (t === 1000 ? 150 : 250)),
+      };
+
+      const mockSeries = {
+        priceToCoordinate: vi.fn((price: number) => {
+          if (price === 1.085) return 220;
+          if (price === 1.09) return 200;
+          if (price === 1.075) return 240;
+          return null;
+        }),
+      };
+
+      renderCandleNews(
+        mockCtx,
+        candles,
+        mockTimeScale as never,
+        mockSeries as never,
+        800,
+        600,
+        'dark',
+        1000,
+      );
+
+      expect(mockCtx.moveTo).toHaveBeenCalledWith(150, 0);
+      expect(mockCtx.lineTo).toHaveBeenCalledWith(150, 600);
+
+      expect(mockCtx.moveTo).toHaveBeenCalledWith(0, 220);
+      expect(mockCtx.lineTo).toHaveBeenCalledWith(800, 220);
+
+      expect(mockCtx.arc).toHaveBeenCalledWith(150, 220, 4, 0, Math.PI * 2);
+    });
+
+    it('should not draw crosshair guidelines when no candle is hovered', () => {
+      const candles: Candle[] = [
+        {
+          time: 1000,
+          open: 1.08,
+          high: 1.09,
+          low: 1.075,
+          close: 1.085,
+          news: [{ title: 'CPI Release', impact: 'high' }],
+        },
+      ];
+
+      const mockCtx = {
+        save: vi.fn(),
+        restore: vi.fn(),
+        beginPath: vi.fn(),
+        arc: vi.fn(),
+        fill: vi.fn(),
+        stroke: vi.fn(),
+        fillText: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        fillRect: vi.fn(),
+        setLineDash: vi.fn(),
+      } as unknown as CanvasRenderingContext2D;
+
+      const mockTimeScale = {
+        timeToCoordinate: vi.fn().mockReturnValue(150),
+      };
+
+      const mockSeries = {
+        priceToCoordinate: vi.fn().mockReturnValue(220),
+      };
+
+      renderCandleNews(
+        mockCtx,
+        candles,
+        mockTimeScale as never,
+        mockSeries as never,
+        800,
+        600,
+        'dark',
+        null,
+      );
+
+      expect(mockCtx.moveTo).not.toHaveBeenCalledWith(150, 0);
     });
   });
 });

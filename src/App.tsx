@@ -15,7 +15,6 @@ import {
   Moon,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   FolderOpen,
   Folder,
   Check,
@@ -68,7 +67,6 @@ export const App: React.FC = () => {
   }>({});
 
   const [isPopoverOpen, setIsPopoverOpen] = useState<boolean>(false);
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState<boolean>(false);
   const [isNewsVisible] = useState<boolean>(true);
   const [hoveredDrawingId, setHoveredDrawingId] = useState<string | null>(null);
   const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
@@ -456,24 +454,6 @@ export const App: React.FC = () => {
       className="relative h-screen w-screen overflow-hidden bg-slate-50 dark:bg-[#090d16] text-slate-800 dark:text-slate-100 select-none"
     >
       <div className="absolute top-3 left-3 z-30 flex items-center gap-2">
-        {availableTimeframes.length > 0 && (
-          <div className="inline-flex items-center h-8 bg-white/90 dark:bg-slate-900/90 p-1 rounded-lg border border-slate-200 dark:border-slate-700/80 backdrop-blur-md shadow-sm">
-            {availableTimeframes.map((tf) => (
-              <button
-                key={tf}
-                onClick={() => setCurrentTimeframe(tf)}
-                className={`h-6 px-2.5 inline-flex items-center justify-center text-xs font-semibold leading-none rounded-md cursor-pointer transition-colors ${
-                  currentTimeframe === tf
-                    ? 'bg-sky-500 text-white'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                {tf}
-              </button>
-            ))}
-          </div>
-        )}
-
         {cases.length > 1 && (
           <div
             ref={caseDropdownContainerRef}
@@ -499,6 +479,9 @@ export const App: React.FC = () => {
                 title="Hover or click to select case"
               >
                 <FolderOpen className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                <span className="inline-flex items-center justify-center h-[18px] px-1.5 rounded-full text-[10px] font-medium leading-none bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700/60 shrink-0">
+                  Case {currentCaseIndex + 1}/{cases.length}
+                </span>
                 <span
                   className="font-semibold text-slate-800 dark:text-slate-100 leading-normal truncate max-w-[200px] sm:max-w-[280px] py-0.5"
                   title={
@@ -511,12 +494,6 @@ export const App: React.FC = () => {
                     cases[currentCaseIndex]?.name ||
                     'Case'}
                 </span>
-                <span className="inline-flex items-center justify-center h-[18px] px-1.5 rounded-full text-[10px] font-medium leading-none bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700/60 shrink-0">
-                  {currentCaseIndex + 1}/{cases.length}
-                </span>
-                <ChevronDown
-                  className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${isCaseDropdownOpen ? 'rotate-180' : ''}`}
-                />
               </div>
               <button
                 onClick={(e) => {
@@ -533,114 +510,156 @@ export const App: React.FC = () => {
 
             {isCaseDropdownOpen && (
               <div
-                className="absolute left-0 top-full mt-1.5 z-50 min-w-[260px] max-w-[320px] bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 rounded-xl p-1.5 shadow-2xl backdrop-blur-md text-xs"
+                className="absolute left-0 top-full mt-1.5 z-50 w-full bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 rounded-xl p-1.5 backdrop-blur-md text-xs before:absolute before:-top-2 before:left-0 before:w-full before:h-2 before:content-['']"
                 onMouseEnter={handleCaseMouseEnter}
                 onMouseLeave={handleCaseMouseLeave}
               >
-                {groupedCases.ungrouped.map(({ caseItem, originalIndex }) => {
-                  const isActive = originalIndex === currentCaseIndex;
-                  return (
-                    <button
-                      key={caseItem.id}
-                      onMouseEnter={() => setHoveredGroup(null)}
-                      onClick={() => {
-                        handleSwitchCase(originalIndex);
-                        setIsCaseDropdownOpen(false);
-                        setHoveredGroup(null);
-                      }}
-                      className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-left transition-colors cursor-pointer text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-                      title={caseItem.title || caseItem.name}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <span className="font-medium truncate">
-                          {caseItem.title || caseItem.name}
-                        </span>
+                {groupedCases.ungrouped.length > 0 && (
+                  <div>
+                    {groupedCases.groups.length > 0 && (
+                      <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                        Single Cases
                       </div>
-                      {isActive && (
-                        <Check className="w-4 h-4 text-sky-500 shrink-0" />
+                    )}
+                    <div className="space-y-0.5">
+                      {groupedCases.ungrouped.map(
+                        ({ caseItem, originalIndex }) => {
+                          const isActive = originalIndex === currentCaseIndex;
+                          return (
+                            <button
+                              key={caseItem.id}
+                              onMouseEnter={() => setHoveredGroup(null)}
+                              onClick={() => {
+                                handleSwitchCase(originalIndex);
+                                setIsCaseDropdownOpen(false);
+                                setHoveredGroup(null);
+                              }}
+                              className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-left transition-colors cursor-pointer text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                              title={caseItem.title || caseItem.name}
+                            >
+                              <div className="min-w-0 flex-1">
+                                <span className="font-medium truncate">
+                                  {caseItem.title || caseItem.name}
+                                </span>
+                              </div>
+                              {isActive && (
+                                <Check className="w-4 h-4 text-sky-500 shrink-0" />
+                              )}
+                            </button>
+                          );
+                        },
                       )}
-                    </button>
-                  );
-                })}
+                    </div>
+                  </div>
+                )}
 
                 {groupedCases.ungrouped.length > 0 &&
                   groupedCases.groups.length > 0 && (
-                    <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                    <div className="my-1.5 border-t border-slate-100 dark:border-slate-800" />
                   )}
 
-                {groupedCases.groups.map((group) => {
-                  const isGroupHovered = hoveredGroup === group.name;
-
-                  return (
-                    <div
-                      key={group.name}
-                      className="relative"
-                      onMouseEnter={() => setHoveredGroup(group.name)}
-                    >
-                      <div
-                        className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg transition-colors cursor-pointer select-none ${
-                          isGroupHovered
-                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100'
-                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <Folder className="w-3.5 h-3.5 text-sky-500 shrink-0" />
-                          <span className="font-medium truncate">
-                            {group.name}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700/60">
-                            {group.items.length}
-                          </span>
-                          <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
-                        </div>
+                {groupedCases.groups.length > 0 && (
+                  <div>
+                    {groupedCases.ungrouped.length > 0 && (
+                      <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                        Groups
                       </div>
+                    )}
+                    <div className="space-y-0.5">
+                      {groupedCases.groups.map((group) => {
+                        const isGroupHovered = hoveredGroup === group.name;
 
-                      {isGroupHovered && (
-                        <div
-                          className="absolute left-full top-0 ml-1.5 z-50 min-w-[260px] max-w-[340px] bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 rounded-xl p-1.5 shadow-2xl backdrop-blur-md text-xs max-h-[380px] overflow-y-auto before:absolute before:-left-2 before:top-0 before:w-2.5 before:h-full before:content-['']"
-                          onMouseEnter={() => setHoveredGroup(group.name)}
-                        >
-                          <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5 mb-1 border-b border-slate-100 dark:border-slate-800/80 pb-1.5">
-                            <Folder className="w-3 h-3 text-sky-500" />
-                            <span className="truncate">{group.name}</span>
-                          </div>
-                          <div className="space-y-0.5">
-                            {group.items.map(({ caseItem, originalIndex }) => {
-                              const isActive =
-                                originalIndex === currentCaseIndex;
-                              return (
-                                <button
-                                  key={caseItem.id}
-                                  onClick={() => {
-                                    handleSwitchCase(originalIndex);
-                                    setIsCaseDropdownOpen(false);
-                                    setHoveredGroup(null);
-                                  }}
-                                  className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-left transition-colors cursor-pointer text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-                                  title={caseItem.title || caseItem.name}
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <span className="font-medium truncate">
-                                      {caseItem.title || caseItem.name}
-                                    </span>
-                                  </div>
-                                  {isActive && (
-                                    <Check className="w-4 h-4 text-sky-500 shrink-0" />
+                        return (
+                          <div
+                            key={group.name}
+                            className="relative"
+                            onMouseEnter={() => setHoveredGroup(group.name)}
+                          >
+                            <div
+                              className={`w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg transition-colors cursor-pointer select-none ${
+                                isGroupHovered
+                                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100'
+                                  : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <Folder className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                                <span className="font-medium truncate">
+                                  {group.name}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200/60 dark:border-slate-700/60">
+                                  {group.items.length}
+                                </span>
+                                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                              </div>
+                            </div>
+
+                            {isGroupHovered && (
+                              <div
+                                className="absolute left-full top-0 ml-1.5 z-50 min-w-[260px] max-w-[340px] bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700/80 rounded-xl p-1.5 backdrop-blur-md text-xs max-h-[380px] overflow-y-auto before:absolute before:-left-2 before:top-0 before:w-2.5 before:h-full before:content-['']"
+                                onMouseEnter={() => setHoveredGroup(group.name)}
+                              >
+                                <div className="space-y-0.5">
+                                  {group.items.map(
+                                    ({ caseItem, originalIndex }) => {
+                                      const isActive =
+                                        originalIndex === currentCaseIndex;
+                                      return (
+                                        <button
+                                          key={caseItem.id}
+                                          onClick={() => {
+                                            handleSwitchCase(originalIndex);
+                                            setIsCaseDropdownOpen(false);
+                                            setHoveredGroup(null);
+                                          }}
+                                          className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-left transition-colors cursor-pointer text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                          title={
+                                            caseItem.title || caseItem.name
+                                          }
+                                        >
+                                          <div className="min-w-0 flex-1">
+                                            <span className="font-medium truncate">
+                                              {caseItem.title || caseItem.name}
+                                            </span>
+                                          </div>
+                                          {isActive && (
+                                            <Check className="w-4 h-4 text-sky-500 shrink-0" />
+                                          )}
+                                        </button>
+                                      );
+                                    },
                                   )}
-                                </button>
-                              );
-                            })}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      )}
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                  </div>
+                )}
               </div>
             )}
+          </div>
+        )}
+
+        {availableTimeframes.length > 0 && (
+          <div className="inline-flex items-center h-8 bg-white/90 dark:bg-slate-900/90 p-1 rounded-lg border border-slate-200 dark:border-slate-700/80 backdrop-blur-md shadow-sm">
+            {availableTimeframes.map((tf) => (
+              <button
+                key={tf}
+                onClick={() => setCurrentTimeframe(tf)}
+                className={`h-6 px-2.5 inline-flex items-center justify-center text-xs font-semibold leading-none rounded-md cursor-pointer transition-colors ${
+                  currentTimeframe === tf
+                    ? 'bg-sky-500 text-white'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                {tf}
+              </button>
+            ))}
           </div>
         )}
       </div>
@@ -650,62 +669,49 @@ export const App: React.FC = () => {
         style={{ right: `${Math.max(76, priceScaleWidth) + 12}px` }}
       >
         {hasCandles && (
-          <>
-            <div className="relative">
-              <button
-                id="btn-show-hide-item"
-                onClick={() => setIsPopoverOpen((prev) => !prev)}
-                className={`inline-flex items-center justify-center h-8 gap-2 px-3 rounded-lg font-medium border text-xs leading-none backdrop-blur-md cursor-pointer transition-colors ${
-                  isPopoverOpen
-                    ? 'bg-sky-500/25 text-sky-600 dark:text-sky-300 border-sky-500/60'
-                    : 'bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-                title="Show / Hide active elements in this timeframe"
-              >
-                {visibleElementsCount > 0 ? (
-                  <Eye className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400 shrink-0" />
-                ) : (
-                  <EyeOff className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                )}
-                <span className="leading-none">Elements</span>
-                <span
-                  className={`inline-flex items-center justify-center h-5 min-w-5 px-2 rounded-full text-[11px] font-medium leading-none ${
-                    isPopoverOpen
-                      ? 'bg-sky-500/20 text-sky-700 dark:text-sky-200'
-                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/80'
-                  }`}
-                >
-                  {visibleElementsCount}/{activeElements.length}
-                </span>
-              </button>
-
-              {isPopoverOpen && (
-                <Suspense fallback={null}>
-                  <LineItemsPopover
-                    isOpen={isPopoverOpen}
-                    onClose={() => setIsPopoverOpen(false)}
-                    elements={activeElements}
-                    elementVisibility={elementVisibility}
-                    onToggleElementVisibility={handleToggleElementVisibility}
-                    onToggleTimeframeVisibility={
-                      handleToggleTimeframeVisibility
-                    }
-                    hoveredElementId={hoveredElementId}
-                    onHoverElement={setHoveredElementId}
-                  />
-                </Suspense>
-              )}
-            </div>
-
+          <div className="relative">
             <button
-              onClick={() => setIsUploadModalOpen(true)}
-              className="inline-flex items-center justify-center h-8 gap-1.5 px-3 rounded-lg font-medium border text-xs leading-none backdrop-blur-md cursor-pointer transition-colors bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-800"
-              title="Open Folder (Select chart data folder)"
+              id="btn-show-hide-item"
+              onClick={() => setIsPopoverOpen((prev) => !prev)}
+              className={`inline-flex items-center justify-center h-8 gap-2 px-3 rounded-lg font-medium border text-xs leading-none backdrop-blur-md cursor-pointer transition-colors ${
+                isPopoverOpen
+                  ? 'bg-sky-500/25 text-sky-600 dark:text-sky-300 border-sky-500/60'
+                  : 'bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700/80 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+              title="Show / Hide active elements in this timeframe"
             >
-              <FolderOpen className="w-3.5 h-3.5 text-sky-500 shrink-0" />
-              <span className="leading-none">Folder</span>
+              {visibleElementsCount > 0 ? (
+                <Eye className="w-3.5 h-3.5 text-sky-500 dark:text-sky-400 shrink-0" />
+              ) : (
+                <EyeOff className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              )}
+              <span className="leading-none">Elements</span>
+              <span
+                className={`inline-flex items-center justify-center h-5 min-w-5 px-2 rounded-full text-[11px] font-medium leading-none ${
+                  isPopoverOpen
+                    ? 'bg-sky-500/20 text-sky-700 dark:text-sky-200'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700/80'
+                }`}
+              >
+                {visibleElementsCount}/{activeElements.length}
+              </span>
             </button>
-          </>
+
+            {isPopoverOpen && (
+              <Suspense fallback={null}>
+                <LineItemsPopover
+                  isOpen={isPopoverOpen}
+                  onClose={() => setIsPopoverOpen(false)}
+                  elements={activeElements}
+                  elementVisibility={elementVisibility}
+                  onToggleElementVisibility={handleToggleElementVisibility}
+                  onToggleTimeframeVisibility={handleToggleTimeframeVisibility}
+                  hoveredElementId={hoveredElementId}
+                  onHoverElement={setHoveredElementId}
+                />
+              </Suspense>
+            )}
+          </div>
         )}
 
         <button
@@ -755,12 +761,12 @@ export const App: React.FC = () => {
         </Suspense>
       </main>
 
-      {(!hasCandles || isUploadModalOpen) && (
+      {!hasCandles && (
         <Suspense fallback={null}>
           <UploadModal
             isOpen={true}
-            showCloseButton={hasCandles}
-            onClose={() => setIsUploadModalOpen(false)}
+            showCloseButton={false}
+            onClose={() => {}}
             onDataLoaded={handleDataLoaded}
             onCasesLoaded={handleCasesLoaded}
           />

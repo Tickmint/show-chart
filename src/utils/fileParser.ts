@@ -116,7 +116,10 @@ export function normalizeCandlePoi(raw: unknown): CandlePoiConfig | null {
 
 export const normalizeCandleKeyLevel = normalizeCandlePoi;
 
-export function normalizeCandles(rawCandles: unknown[]): Candle[] {
+export function normalizeCandles(
+  rawCandles: unknown[],
+  defaultTimeframe?: string,
+): Candle[] {
   if (!Array.isArray(rawCandles)) return [];
 
   const candles: Candle[] = (rawCandles as Array<Record<string, unknown>>)
@@ -128,6 +131,14 @@ export function normalizeCandles(rawCandles: unknown[]): Candle[] {
       const high = Number(c.high ?? c.h ?? open);
       const low = Number(c.low ?? c.l ?? open);
       const close = Number(c.close ?? c.c ?? open);
+
+      const candleTf =
+        typeof c.timeframe === 'string' && c.timeframe.trim() !== ''
+          ? c.timeframe.trim()
+          : typeof c.sourceTimeframe === 'string' &&
+              c.sourceTimeframe.trim() !== ''
+            ? c.sourceTimeframe.trim()
+            : defaultTimeframe;
 
       let pois: CandlePoiConfig[] | undefined;
       const rawPoiList =
@@ -146,7 +157,15 @@ export function normalizeCandles(rawCandles: unknown[]): Candle[] {
           .filter(Boolean) as CandlePoiConfig[];
       }
 
-      const candleObj: Candle = { time, open, high, low, close };
+      const candleObj: Candle = {
+        time,
+        open,
+        high,
+        low,
+        close,
+        timeframe: candleTf,
+        sourceTimeframe: candleTf,
+      };
       if (pois && pois.length > 0) {
         candleObj.pois = pois;
         candleObj.poi = pois[0];
@@ -249,6 +268,8 @@ export function normalizeCandles(rawCandles: unknown[]): Candle[] {
                 id: `label-${time}-${lIdx}`,
                 text: l.trim(),
                 visible: true,
+                timeframe: candleTf,
+                sourceTimeframe: candleTf,
               };
             }
             if (typeof l === 'object') {
@@ -263,6 +284,14 @@ export function normalizeCandles(rawCandles: unknown[]): Candle[] {
                   : typeof lObj.show === 'boolean'
                     ? lObj.show
                     : true;
+              const labelTf =
+                typeof lObj.timeframe === 'string' &&
+                lObj.timeframe.trim() !== ''
+                  ? lObj.timeframe.trim()
+                  : typeof lObj.sourceTimeframe === 'string' &&
+                      lObj.sourceTimeframe.trim() !== ''
+                    ? lObj.sourceTimeframe.trim()
+                    : candleTf;
               return {
                 id:
                   typeof lObj.id === 'string'
@@ -298,6 +327,16 @@ export function normalizeCandles(rawCandles: unknown[]): Candle[] {
                     : 'auto',
                 fontSize:
                   typeof lObj.fontSize === 'number' ? lObj.fontSize : undefined,
+                element:
+                  typeof lObj.element === 'string'
+                    ? lObj.element.trim()
+                    : undefined,
+                group:
+                  typeof lObj.group === 'string'
+                    ? lObj.group.trim()
+                    : undefined,
+                timeframe: labelTf,
+                sourceTimeframe: labelTf,
               };
             }
             return null;
@@ -315,6 +354,13 @@ export function normalizeCandles(rawCandles: unknown[]): Candle[] {
               : typeof lObj.show === 'boolean'
                 ? lObj.show
                 : true;
+          const labelTf =
+            typeof lObj.timeframe === 'string' && lObj.timeframe.trim() !== ''
+              ? lObj.timeframe.trim()
+              : typeof lObj.sourceTimeframe === 'string' &&
+                  lObj.sourceTimeframe.trim() !== ''
+                ? lObj.sourceTimeframe.trim()
+                : candleTf;
           labels = [
             {
               id: typeof lObj.id === 'string' ? lObj.id : `label-${time}-0`,
@@ -344,6 +390,14 @@ export function normalizeCandles(rawCandles: unknown[]): Candle[] {
                   : 'auto',
               fontSize:
                 typeof lObj.fontSize === 'number' ? lObj.fontSize : undefined,
+              element:
+                typeof lObj.element === 'string'
+                  ? lObj.element.trim()
+                  : undefined,
+              group:
+                typeof lObj.group === 'string' ? lObj.group.trim() : undefined,
+              timeframe: labelTf,
+              sourceTimeframe: labelTf,
             },
           ];
         }
@@ -356,6 +410,8 @@ export function normalizeCandles(rawCandles: unknown[]): Candle[] {
             id: `label-${time}-0`,
             text: rawLabelsList.trim(),
             visible: true,
+            timeframe: candleTf,
+            sourceTimeframe: candleTf,
           },
         ];
       }
@@ -1110,7 +1166,7 @@ export function standardizeChartData(raw: unknown): ForexChartData {
       if (tfVal && typeof tfVal === 'object') {
         const tfObj = tfVal as Record<string, unknown>;
         if (Array.isArray(tfObj.candles)) {
-          const normCandles = normalizeCandles(tfObj.candles);
+          const normCandles = normalizeCandles(tfObj.candles, tfKey);
           const rawDrawings = extractDrawingsWithGroups(
             tfObj.drawings ||
               tfObj.pois ||
@@ -1147,7 +1203,7 @@ export function standardizeChartData(raw: unknown): ForexChartData {
       }
     }
   } else if (Array.isArray(rawObj.candles)) {
-    const normCandles = normalizeCandles(rawObj.candles);
+    const normCandles = normalizeCandles(rawObj.candles, 'D1');
     const rawDrawings = extractDrawingsWithGroups(
       rawObj.drawings ||
         rawObj.pois ||

@@ -46,6 +46,8 @@ export interface CandleLabelConfig {
   fontSize?: number;
   element?: string;
   group?: string;
+  timeframe?: string;
+  sourceTimeframe?: string;
 }
 
 export interface Candle {
@@ -61,6 +63,8 @@ export interface Candle {
   news?: CandleNewsItem[];
   labels?: CandleLabelConfig[];
   label?: CandleLabelConfig;
+  timeframe?: string;
+  sourceTimeframe?: string;
 }
 
 export type DrawingType =

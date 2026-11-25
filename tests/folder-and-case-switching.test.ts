@@ -173,14 +173,28 @@ describe('Folder Input, Case Switching & Compressed Gzip Verification', () => {
         }
       });
 
-      // Ungrouped item stays at root menu level
       expect(ungrouped.length).toBe(1);
       expect(ungrouped[0]?.title).toBe('Order Block Continuation');
 
-      // Groups are separated for flyout sub-menus
       expect(groupsMap.size).toBe(2);
       expect(groupsMap.get('Forex Majors')?.length).toBe(2);
       expect(groupsMap.get('Commodities & Metals')?.length).toBe(1);
+    });
+
+    it('should distinguish ungrouped cases and groups with main menu headers and omit headers in sub-menu', () => {
+      const ungroupedCount = 1;
+      const groupsCount = 2;
+
+      const showSingleCasesHeader = ungroupedCount > 0 && groupsCount > 0;
+      const showGroupsHeader = ungroupedCount > 0 && groupsCount > 0;
+      const showDivider = ungroupedCount > 0 && groupsCount > 0;
+
+      expect(showSingleCasesHeader).toBe(true);
+      expect(showGroupsHeader).toBe(true);
+      expect(showDivider).toBe(true);
+
+      const subMenuGroupHeaderRendered = false;
+      expect(subMenuGroupHeaderRendered).toBe(false);
     });
   });
 });

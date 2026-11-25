@@ -433,23 +433,25 @@ def inject_random_news_and_labels(
             m5_c["news"] = c_news
 
     # 2. Random Callout Labels across timeframes (with random true/false visibility)
-    def add_labels_to_candles(c_list: List[Dict[str, Any]], count: int):
+    def add_labels_to_candles(c_list: List[Dict[str, Any]], count: int, tf: str):
         indices = sorted(rng.sample(range(10, len(c_list) - 10), k=min(count, len(c_list) - 20)))
         for k, idx in enumerate(indices):
             tmpl = LABEL_TEMPLATES[k % len(LABEL_TEMPLATES)]
             is_visible = (k % 3 != 0)  # 2/3 true, 1/3 false to test default true/false
             label_obj = {
-                "id": f"label-{c_list[idx]['time']}-1",
+                "id": f"label-{tf}-{c_list[idx]['time']}-{k+1}",
                 "text": tmpl["text"],
                 "position": tmpl.get("position", "auto"),
-                "visible": is_visible
+                "visible": is_visible,
+                "timeframe": tf,
+                "sourceTimeframe": tf
             }
             c_list[idx]["labels"] = [label_obj]
             c_list[idx]["label"] = label_obj
 
-    add_labels_to_candles(m5_candles, 8)
-    add_labels_to_candles(m2_candles, 10)
-    add_labels_to_candles(m1_candles, 12)
+    add_labels_to_candles(m5_candles, 8, "M5")
+    add_labels_to_candles(m2_candles, 10, "M2")
+    add_labels_to_candles(m1_candles, 12, "M1")
 
 
 def create_forex_dataset(

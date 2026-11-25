@@ -181,7 +181,6 @@ describe('Candle Callout Labels Feature (Callout Block, Candle Clearance & Defau
         }),
       };
 
-      // Define an obstacle directly above the candle (x: 170..230, y: 120..190)
       const obstacle = {
         left: 170,
         right: 230,
@@ -202,7 +201,7 @@ describe('Candle Callout Labels Feature (Callout Block, Candle Clearance & Defau
       });
 
       expect(layout).not.toBeNull();
-      // Box must not overlap obstacle
+
       const boxOverlap =
         Math.max(layout!.boxLeft, obstacle.left) <
           Math.min(layout!.boxLeft + layout!.boxWidth, obstacle.right) &&
@@ -270,9 +269,6 @@ describe('Candle Callout Labels Feature (Callout Block, Candle Clearance & Defau
           measureText: vi.fn().mockReturnValue({ width: 60 }),
         }) as unknown as CanvasRenderingContext2D;
 
-      // 1. Initial state (no elementVisibility overrides):
-      // lbl-1 is visible: true -> rendered
-      // lbl-2 is visible: false -> NOT rendered
       const ctx1 = createMockCtx();
       renderCandleLabels(
         ctx1,
@@ -299,7 +295,6 @@ describe('Candle Callout Labels Feature (Callout Block, Candle Clearance & Defau
         expect.any(Number),
       );
 
-      // 2. UI override: user turns off lbl-1 (Asian Session High) and turns on lbl-2 (London Session Low)
       const ctx2 = createMockCtx();
       renderCandleLabels(
         ctx2,
@@ -350,6 +345,195 @@ describe('Candle Callout Labels Feature (Callout Block, Candle Clearance & Defau
 
       expect(visibleLabels.length).toBeGreaterThan(0);
       expect(hiddenLabels.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Test 4: Strict Timeframe Isolation for Labels (No Bleeding Across Timeframes)', () => {
+    const createMockCtx = () =>
+      ({
+        save: vi.fn(),
+        restore: vi.fn(),
+        beginPath: vi.fn(),
+        arc: vi.fn(),
+        fill: vi.fn(),
+        stroke: vi.fn(),
+        fillText: vi.fn(),
+        rect: vi.fn(),
+        fillRect: vi.fn(),
+        strokeRect: vi.fn(),
+        measureText: vi.fn(() => ({ width: 60 })),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        closePath: vi.fn(),
+      }) as unknown as CanvasRenderingContext2D;
+
+    const mockTimeScale = {
+      timeToCoordinate: vi.fn((t: number) => (t === 1000 ? 100 : 200)),
+    };
+
+    const mockSeries = {
+      priceToCoordinate: vi.fn((p: number) => (p === 1.08 ? 150 : 250)),
+    };
+
+    it('should render label only on its exact matching timeframe and filter it out completely on other timeframes', () => {
+      const candles: Candle[] = [
+        {
+          time: 1000,
+          open: 1.08,
+          high: 1.09,
+          low: 1.075,
+          close: 1.085,
+          labels: [
+            {
+              id: 'm5-lbl',
+              text: 'M5 Key Level Break',
+              visible: true,
+              timeframe: 'M5',
+            },
+          ],
+        },
+        {
+          time: 2000,
+          open: 1.085,
+          high: 1.095,
+          low: 1.082,
+          close: 1.09,
+          labels: [
+            {
+              id: 'm1-lbl',
+              text: 'M1 Micro CHoCH',
+              visible: true,
+              timeframe: 'M1',
+            },
+          ],
+        },
+      ];
+
+      const ctxM5 = createMockCtx();
+      renderCandleLabels(
+        ctxM5,
+        candles,
+        mockTimeScale as never,
+        mockSeries as never,
+        800,
+        600,
+        true,
+        'dark',
+        [],
+        'M5',
+      );
+      expect(ctxM5.fillText).toHaveBeenCalledWith(
+        'M5 Key Level Break',
+        expect.any(Number),
+        expect.any(Number),
+      );
+      expect(ctxM5.fillText).not.toHaveBeenCalledWith(
+        'M1 Micro CHoCH',
+        expect.any(Number),
+        expect.any(Number),
+      );
+
+      const ctxM1 = createMockCtx();
+      renderCandleLabels(
+        ctxM1,
+        candles,
+        mockTimeScale as never,
+        mockSeries as never,
+        800,
+        600,
+        true,
+        'dark',
+        [],
+        'M1',
+      );
+      expect(ctxM1.fillText).not.toHaveBeenCalledWith(
+        'M5 Key Level Break',
+        expect.any(Number),
+        expect.any(Number),
+      );
+      expect(ctxM1.fillText).toHaveBeenCalledWith(
+        'M1 Micro CHoCH',
+        expect.any(Number),
+        expect.any(Number),
+      );
+
+      const ctxM2 = createMockCtx();
+      renderCandleLabels(
+        ctxM2,
+        candles,
+        mockTimeScale as never,
+        mockSeries as never,
+        800,
+        600,
+        true,
+        'dark',
+        [],
+        'M2',
+      );
+      expect(ctxM2.fillText).not.toHaveBeenCalledWith(
+        'M5 Key Level Break',
+        expect.any(Number),
+        expect.any(Number),
+      );
+      expect(ctxM2.fillText).not.toHaveBeenCalledWith(
+        'M1 Micro CHoCH',
+        expect.any(Number),
+        expect.any(Number),
+      );
+    });
+
+    it('should enforce candle-level timeframe isolation', () => {
+      const candles: Candle[] = [
+        {
+          time: 1000,
+          open: 1.08,
+          high: 1.09,
+          low: 1.075,
+          close: 1.085,
+          timeframe: 'H4',
+          labels: [{ id: 'h4-lbl', text: 'H4 Bullish Ob', visible: true }],
+        },
+      ];
+
+      const ctxM15 = createMockCtx();
+      renderCandleLabels(
+        ctxM15,
+        candles,
+        mockTimeScale as never,
+        mockSeries as never,
+        800,
+        600,
+        true,
+        'dark',
+        [],
+        'M15',
+      );
+      expect(ctxM15.fillText).not.toHaveBeenCalledWith(
+        'H4 Bullish Ob',
+        expect.any(Number),
+        expect.any(Number),
+      );
+    });
+
+    it('should automatically assign defaultTimeframe to candles and labels during normalization', () => {
+      const raw = [
+        {
+          time: 1000,
+          open: 1.08,
+          high: 1.09,
+          low: 1.075,
+          close: 1.085,
+          label: 'Asian Liquidity Sweep',
+        },
+      ];
+
+      const normM5 = normalizeCandles(raw, 'M5');
+      expect(normM5[0]?.timeframe).toBe('M5');
+      expect(normM5[0]?.labels?.[0]?.timeframe).toBe('M5');
+
+      const normH1 = normalizeCandles(raw, 'H1');
+      expect(normH1[0]?.timeframe).toBe('H1');
+      expect(normH1[0]?.labels?.[0]?.timeframe).toBe('H1');
     });
   });
 });

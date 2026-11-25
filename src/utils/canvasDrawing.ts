@@ -1200,6 +1200,93 @@ export function renderCandleNews(
   const radius = 9;
   const bottomY = Math.max(radius + 4, paneHeight - radius - 5);
 
+  if (hoveredTime !== null && hoveredTime !== undefined) {
+    const hoveredCandle = candles.find(
+      (c) => c.time === hoveredTime && c.news && c.news.length > 0,
+    );
+    if (hoveredCandle) {
+      const hx = timeScale.timeToCoordinate(hoveredCandle.time as Time);
+      if (hx !== null && hx >= -20 && hx <= paneWidth + 20) {
+        const yClose = series.priceToCoordinate(hoveredCandle.close);
+        const yHigh = series.priceToCoordinate(hoveredCandle.high);
+        const yLow = series.priceToCoordinate(hoveredCandle.low);
+
+        const crosshairColor = theme === 'dark' ? '#38bdf8' : '#0284c7';
+
+        ctx.save();
+
+        if (yHigh !== null && yLow !== null) {
+          const topY = Math.min(yHigh, yLow);
+          const bottomYRange = Math.max(yHigh, yLow);
+          const candleW = 16;
+          ctx.fillStyle =
+            theme === 'dark'
+              ? 'rgba(56, 189, 248, 0.15)'
+              : 'rgba(2, 132, 199, 0.12)';
+          if (typeof ctx.roundRect === 'function') {
+            ctx.beginPath();
+            ctx.roundRect(
+              hx - candleW / 2,
+              topY - 4,
+              candleW,
+              bottomYRange - topY + 8,
+              4,
+            );
+            ctx.fill();
+          } else {
+            ctx.fillRect(
+              hx - candleW / 2,
+              topY - 4,
+              candleW,
+              bottomYRange - topY + 8,
+            );
+          }
+        }
+
+        ctx.beginPath();
+        if (typeof ctx.setLineDash === 'function') {
+          ctx.setLineDash([3, 3]);
+        }
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle =
+          theme === 'dark'
+            ? 'rgba(56, 189, 248, 0.85)'
+            : 'rgba(2, 132, 199, 0.85)';
+        ctx.moveTo(hx, 0);
+        ctx.lineTo(hx, paneHeight);
+        ctx.stroke();
+
+        if (yClose !== null) {
+          ctx.beginPath();
+          if (typeof ctx.setLineDash === 'function') {
+            ctx.setLineDash([3, 3]);
+          }
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle =
+            theme === 'dark'
+              ? 'rgba(56, 189, 248, 0.7)'
+              : 'rgba(2, 132, 199, 0.7)';
+          ctx.moveTo(0, yClose);
+          ctx.lineTo(paneWidth, yClose);
+          ctx.stroke();
+
+          if (typeof ctx.setLineDash === 'function') {
+            ctx.setLineDash([]);
+          }
+          ctx.beginPath();
+          ctx.arc(hx, yClose, 4, 0, Math.PI * 2);
+          ctx.fillStyle = crosshairColor;
+          ctx.fill();
+          ctx.strokeStyle = theme === 'dark' ? '#0f172a' : '#ffffff';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+    }
+  }
+
   for (let i = 0; i < candles.length; i++) {
     const c = candles[i]!;
     if (!c.news || c.news.length === 0) continue;
@@ -1734,11 +1821,24 @@ export function renderCandleLabels(
 
   for (let i = 0; i < candles.length; i++) {
     const c = candles[i]!;
+
+    if (currentTimeframe) {
+      if (c.timeframe && c.timeframe !== currentTimeframe) continue;
+      if (c.sourceTimeframe && c.sourceTimeframe !== currentTimeframe) continue;
+    }
+
     const labelList = c.labels || (c.label ? [c.label] : []);
     if (labelList.length === 0) continue;
 
     for (let lIdx = 0; lIdx < labelList.length; lIdx++) {
       const label = labelList[lIdx]!;
+
+      if (currentTimeframe) {
+        if (label.timeframe && label.timeframe !== currentTimeframe) continue;
+        if (label.sourceTimeframe && label.sourceTimeframe !== currentTimeframe)
+          continue;
+      }
+
       const elId =
         label.element ||
         label.id ||
